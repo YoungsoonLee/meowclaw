@@ -1,0 +1,31 @@
+gateway:
+  port: 18790
+  host: "127.0.0.1"
+  verbose: false
+
+channels:
+  telegram:
+    enabled: false
+    bot_token: ""
+  discord:
+    enabled: false
+    bot_token: ""
+  whatsapp:
+    enabled: false
+    db_path: ""
+  webchat:
+    enabled: true
+
+agent:
+  provider: "openai"       # openai | anthropic
+  model: "gpt-4o"
+  openai:
+    api_key: ""
+    model: "gpt-4o"
+  # anthropic:
+  #   api_key: ""
+  #   model: "claude-sonnet-4-20250514"
+
+memory:
+  enabled: true
+  db_path: "~/.meowclaw/memory.db"

@@ -1,0 +1,8 @@
+meowclaw
+claw
+*.db
+*.exe
+dist/
+.meowclaw/
+.claw/
+CLAUDE.md

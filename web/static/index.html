@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MeowClaw - Dashboard</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --border: #1e1e2e;
+    --text: #e4e4ef;
+    --text-dim: #8888a0;
+    --accent: #6c5ce7;
+    --green: #00d68f;
+    --red: #ff6b6b;
+    --yellow: #ffd93d;
+    --radius: 12px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  .header { padding: 20px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; }
+  .header h1 { font-size: 20px; font-weight: 600; }
+  .header h1 span { color: var(--accent); }
+  .header .status { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-dim); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot.green { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .dot.red { background: var(--red); }
+  .dot.yellow { background: var(--yellow); }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 24px 32px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .card h2 { font-size: 14px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; }
+
+  .stat-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-label { color: var(--text-dim); font-size: 13px; }
+  .stat-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .channel-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .channel-item:last-child { border-bottom: none; }
+  .channel-name { font-weight: 500; flex: 1; }
+  .channel-stats { font-size: 12px; color: var(--text-dim); }
+
+  .chat-container { grid-column: 1 / -1; }
+  .messages { max-height: 400px; overflow-y: auto; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .msg { padding: 10px 14px; border-radius: 10px; max-width: 80%; font-size: 14px; line-height: 1.5; word-wrap: break-word; }
+  .msg.user { background: var(--accent); align-self: flex-end; }
+  .msg.assistant { background: var(--border); align-self: flex-start; }
+  .msg .meta { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+  .input-row { display: flex; gap: 8px; }
+  .input-row input { flex: 1; background: var(--border); border: 1px solid #2a2a3e; color: var(--text); padding: 12px 16px; border-radius: 8px; font-size: 14px; outline: none; }
+  .input-row input:focus { border-color: var(--accent); }
+  .input-row button { background: var(--accent); color: #fff; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px; }
+  .input-row button:hover { opacity: 0.9; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1><span>🐱</span> MeowClaw</h1>
+  <div class="status">
+    <div class="dot green" id="statusDot"></div>
+    <span id="statusText">Connecting...</span>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h2>Gateway</h2>
+    <div id="gatewayStats">
+      <div class="stat-row"><span class="stat-label">Uptime</span><span class="stat-value" id="uptime">-</span></div>
+      <div class="stat-row"><span class="stat-label">Messages In</span><span class="stat-value" id="msgIn">0</span></div>
+      <div class="stat-row"><span class="stat-label">Messages Out</span><span class="stat-value" id="msgOut">0</span></div>
+      <div class="stat-row"><span class="stat-label">WS Clients</span><span class="stat-value" id="clients">0</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Channels</h2>
+    <div id="channelList"><div class="stat-row"><span class="stat-label">Loading...</span></div></div>
+  </div>
+
+  <div class="card chat-container">
+    <h2>WebChat</h2>
+    <div class="messages" id="messages"></div>
+    <div class="input-row">
+      <input type="text" id="chatInput" placeholder="Type a message..." autocomplete="off">
+      <button onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const messagesEl = document.getElementById('messages');
+const chatInput = document.getElementById('chatInput');
+let ws;
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/ws`);
+
+  ws.onopen = () => {
+    document.getElementById('statusDot').className = 'dot green';
+    document.getElementById('statusText').textContent = 'Connected';
+  };
+
+  ws.onclose = () => {
+    document.getElementById('statusDot').className = 'dot red';
+    document.getElementById('statusText').textContent = 'Disconnected';
+    setTimeout(connect, 3000);
+  };
+
+  ws.onmessage = (e) => {
+    const lines = e.data.split('\n');
+    lines.forEach(line => {
+      if (!line.trim()) return;
+      try {
+        const event = JSON.parse(line);
+        handleEvent(event);
+      } catch(err) { console.warn('parse error', err); }
+    });
+  };
+}
+
+function handleEvent(event) {
+  if (event.type === 'message.received' || event.type === 'agent.response') {
+    const msg = event.payload;
+    addMessage(msg.text, msg.from === 'meowclaw' ? 'assistant' : 'user', msg.channel);
+  }
+}
+
+function addMessage(text, role, channel) {
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.innerHTML = text.replace(/</g,'&lt;').replace(/\n/g,'<br>');
+  if (channel) {
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.textContent = channel;
+    div.appendChild(meta);
+  }
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function sendMessage() {
+  const text = chatInput.value.trim();
+  if (!text || !ws || ws.readyState !== 1) return;
+
+  ws.send(JSON.stringify({
+    action: 'send',
+    payload: { channel: 'webchat', to: 'webchat', text: text }
+  }));
+
+  addMessage(text, 'user', 'webchat');
+  chatInput.value = '';
+}
+
+chatInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') sendMessage();
+});
+
+async function pollHealth() {
+  try {
+    const res = await fetch('/api/health');
+    const data = await res.json();
+
+    document.getElementById('uptime').textContent = formatUptime(data.uptime);
+    document.getElementById('msgIn').textContent = data.messages_in.toLocaleString();
+    document.getElementById('msgOut').textContent = data.messages_out.toLocaleString();
+    document.getElementById('clients').textContent = data.clients;
+
+    const list = document.getElementById('channelList');
+    if (data.channels && data.channels.length > 0) {
+      list.innerHTML = data.channels.map(ch => `
+        <div class="channel-item">
+          <div class="dot ${ch.status === 'connected' ? 'green' : ch.status === 'error' ? 'red' : 'yellow'}"></div>
+          <span class="channel-name">${ch.name}</span>
+          <span class="channel-stats">in: ${ch.messages_in} / out: ${ch.messages_out}</span>
+        </div>
+      `).join('');
+    } else {
+      list.innerHTML = '<div class="stat-row"><span class="stat-label">No channels configured</span></div>';
+    }
+  } catch(e) { /* ignore */ }
+}
+
+function formatUptime(seconds) {
+  if (!seconds) return '-';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+connect();
+pollHealth();
+setInterval(pollHealth, 5000);
+</script>
+</body>
+</html>
