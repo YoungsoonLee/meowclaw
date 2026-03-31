@@ -1,5 +1,5 @@
 gateway:
-  port: 18790
+  port: 6820
   host: "127.0.0.1"
   verbose: false
 

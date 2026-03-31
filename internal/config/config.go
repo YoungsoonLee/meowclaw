@@ -72,7 +72,7 @@ type MemoryConfig struct {
 func DefaultConfig() *Config {
 	return &Config{
 		Gateway: GatewayConfig{
-			Port: 18790,
+			Port: 6820,
 			Host: "127.0.0.1",
 		},
 		Channels: ChannelsConfig{

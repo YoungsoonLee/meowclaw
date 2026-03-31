@@ -9,8 +9,8 @@ import (
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
-	if cfg.Gateway.Port != 18790 {
-		t.Errorf("default port = %d, want 18790", cfg.Gateway.Port)
+	if cfg.Gateway.Port != 6820 {
+		t.Errorf("default port = %d, want 6820", cfg.Gateway.Port)
 	}
 	if cfg.Gateway.Host != "127.0.0.1" {
 		t.Errorf("default host = %q, want 127.0.0.1", cfg.Gateway.Host)
@@ -69,7 +69,7 @@ func TestLoadNonExistent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loading non-existent file should not error: %v", err)
 	}
-	if cfg.Gateway.Port != 18790 {
+	if cfg.Gateway.Port != 6820 {
 		t.Errorf("should return defaults, got port = %d", cfg.Gateway.Port)
 	}
 }

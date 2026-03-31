@@ -53,7 +53,7 @@ Telegram / Discord / WhatsApp / WebChat
                v
    +------------------------+
    |   MeowClaw Gateway     |
-   |  ws://127.0.0.1:18790  |
+   |  ws://127.0.0.1:6820  |
    +----------+-------------+
               |
     +---------+---------+
@@ -71,7 +71,7 @@ Config lives at `~/.meowclaw/config.yaml`. See `config.example.yaml` for all opt
 
 ```yaml
 gateway:
-  port: 18790
+  port: 6820
 
 channels:
   telegram:
@@ -109,7 +109,7 @@ POST /api/send
 
 ### WebSocket
 ```
-ws://127.0.0.1:18790/ws
+ws://127.0.0.1:6820/ws
 
 // Send
 {"action": "send", "payload": {"channel": "webchat", "to": "...", "text": "..."}}
@@ -229,7 +229,7 @@ MeowClaw is a cat — light, agile, and survives anything. 🐱
 
 ## Contributing
 
-AI/vibe-coded PRs welcome! 🤖
+AI/vibe-coded PRs welcome!
 
 ## License
 
