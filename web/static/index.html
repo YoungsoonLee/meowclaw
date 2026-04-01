@@ -99,6 +99,7 @@
 const messagesEl = document.getElementById('messages');
 const chatInput = document.getElementById('chatInput');
 let ws;
+let streamingBubbles = {}; // messageID -> DOM element for in-flight streams
 
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -128,10 +129,52 @@ function connect() {
 }
 
 function handleEvent(event) {
-  if (event.type === 'message.received' || event.type === 'agent.response') {
+  if (event.type === 'message.received') {
     const msg = event.payload;
     addMessage(msg.text, msg.from === 'meowclaw' ? 'assistant' : 'user', msg.channel);
+  } else if (event.type === 'agent.stream') {
+    const chunk = event.payload;
+    appendStreamChunk(chunk.message_id, chunk.delta, chunk.channel);
+  } else if (event.type === 'agent.stream.end') {
+    const chunk = event.payload;
+    finalizeStream(chunk.message_id);
+  } else if (event.type === 'agent.response') {
+    const msg = event.payload;
+    if (!streamingBubbles[msg.id]) {
+      addMessage(msg.text, 'assistant', msg.channel);
+    }
   }
+}
+
+function appendStreamChunk(messageID, delta, ch) {
+  let bubble = streamingBubbles[messageID];
+  if (!bubble) {
+    bubble = document.createElement('div');
+    bubble.className = 'msg assistant';
+    bubble.dataset.text = '';
+    if (ch) {
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = ch;
+      bubble.appendChild(meta);
+    }
+    messagesEl.appendChild(bubble);
+    streamingBubbles[messageID] = bubble;
+  }
+  bubble.dataset.text += delta;
+  const meta = bubble.querySelector('.meta');
+  const escaped = bubble.dataset.text.replace(/</g,'&lt;').replace(/\n/g,'<br>');
+  if (meta) {
+    bubble.innerHTML = escaped;
+    bubble.appendChild(meta);
+  } else {
+    bubble.innerHTML = escaped;
+  }
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function finalizeStream(messageID) {
+  delete streamingBubbles[messageID];
 }
 
 function addMessage(text, role, channel) {

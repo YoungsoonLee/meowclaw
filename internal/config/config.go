@@ -40,8 +40,8 @@ type DiscordConfig struct {
 }
 
 type WhatsAppConfig struct {
-	Enabled  bool   `yaml:"enabled"`
-	DBPath   string `yaml:"db_path"`
+	Enabled bool   `yaml:"enabled"`
+	DBPath  string `yaml:"db_path"`
 }
 
 type SlackConfig struct {
@@ -55,20 +55,24 @@ type WebChatConfig struct {
 }
 
 type AgentConfig struct {
-	Model    string          `yaml:"model"`
-	Provider string          `yaml:"provider"`
-	OpenAI   *OpenAIConfig   `yaml:"openai,omitempty"`
+	Model     string           `yaml:"model"`
+	Provider  string           `yaml:"provider"`
+	OpenAI    *OpenAIConfig    `yaml:"openai,omitempty"`
 	Anthropic *AnthropicConfig `yaml:"anthropic,omitempty"`
 }
 
 type OpenAIConfig struct {
-	APIKey string `yaml:"api_key"`
-	Model  string `yaml:"model"`
+	APIKey   string `yaml:"api_key"`
+	Model    string `yaml:"model"`
+	BaseURL  string `yaml:"base_url,omitempty"`  // host only, e.g. https://api.openai.com
+	ChatPath string `yaml:"chat_path,omitempty"` // e.g. /v1/chat/completions — empty uses provider default
 }
 
 type AnthropicConfig struct {
-	APIKey string `yaml:"api_key"`
-	Model  string `yaml:"model"`
+	APIKey       string `yaml:"api_key"`
+	Model        string `yaml:"model"`
+	BaseURL      string `yaml:"base_url,omitempty"`      // host only
+	MessagesPath string `yaml:"messages_path,omitempty"` // e.g. /v1/messages — empty uses provider default
 }
 
 type MemoryConfig struct {

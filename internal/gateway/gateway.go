@@ -22,16 +22,21 @@ import (
 // (if non-nil) is automatically routed back to the originating channel.
 type MessageHandler func(ctx context.Context, msg *message.Message) *message.Message
 
+// StreamHandler is like MessageHandler but receives a callback to deliver
+// streaming deltas to WebSocket clients in real-time.
+type StreamHandler func(ctx context.Context, msg *message.Message, onChunk func(delta string)) *message.Message
+
 type Gateway struct {
-	cfg      *config.Config
-	hub      *Hub
-	channels map[string]channel.Channel
-	handler  MessageHandler
-	server   *http.Server
-	startAt  time.Time
-	msgIn    atomic.Int64
-	msgOut   atomic.Int64
-	mu       sync.RWMutex
+	cfg           *config.Config
+	hub           *Hub
+	channels      map[string]channel.Channel
+	handler       MessageHandler
+	streamHandler StreamHandler
+	server        *http.Server
+	startAt       time.Time
+	msgIn         atomic.Int64
+	msgOut        atomic.Int64
+	mu            sync.RWMutex
 }
 
 var upgrader = websocket.Upgrader{
@@ -56,6 +61,10 @@ func (g *Gateway) RegisterChannel(ch channel.Channel) {
 
 func (g *Gateway) OnMessage(h MessageHandler) {
 	g.handler = h
+}
+
+func (g *Gateway) OnStream(h StreamHandler) {
+	g.streamHandler = h
 }
 
 func (g *Gateway) Start(ctx context.Context) error {
@@ -127,7 +136,7 @@ func (g *Gateway) Stop(ctx context.Context) error {
 }
 
 func (g *Gateway) processInbound(ctx context.Context) {
-	if g.handler == nil {
+	if g.handler == nil && g.streamHandler == nil {
 		return
 	}
 	for {
@@ -136,9 +145,42 @@ func (g *Gateway) processInbound(ctx context.Context) {
 			return
 		case msg := <-g.hub.agentInbox:
 			go func(m *message.Message) {
-				reply := g.handler(ctx, m)
+				var reply *message.Message
+
+				if g.streamHandler != nil {
+					replyID := m.ID + "-reply"
+
+					onChunk := func(delta string) {
+						g.hub.Broadcast(&message.Event{
+							Type: message.EventAgentStream,
+							Payload: &message.StreamChunk{
+								SessionID: m.SessionID,
+								Channel:   m.Channel,
+								ChannelID: m.ChannelID,
+								Delta:     delta,
+								MessageID: replyID,
+							},
+						})
+					}
+
+					reply = g.streamHandler(ctx, m, onChunk)
+
+					if reply != nil {
+						g.hub.Broadcast(&message.Event{
+							Type: message.EventAgentStreamEnd,
+							Payload: &message.StreamChunk{
+								SessionID: m.SessionID,
+								Channel:   m.Channel,
+								ChannelID: m.ChannelID,
+								MessageID: replyID,
+							},
+						})
+					}
+				} else {
+					reply = g.handler(ctx, m)
+				}
+
 				if reply != nil {
-					// set the correct routing fields
 					reply.Channel = m.Channel
 					if reply.To == "" {
 						reply.To = m.ChannelID

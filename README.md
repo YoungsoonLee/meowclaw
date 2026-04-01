@@ -41,6 +41,7 @@ meowclaw up
 - **Multi-channel**: Telegram, Discord, WhatsApp (whatsmeow), Slack (Socket Mode), WebChat
 - **Multi-provider AI**: OpenAI, Anthropic (extensible)
 - **Persistent memory**: SQLite + FTS5 full-text search
+- **Streaming responses**: ChatGPT-like real-time token delivery via WebSocket
 - **WebSocket API**: Real-time message streaming
 - **Web dashboard**: Built-in status & chat UI
 - **Single binary**: No runtime dependencies
@@ -116,6 +117,8 @@ ws://127.0.0.1:6820/ws
 
 // Receive events
 {"type": "message.received", "payload": {...}}
+{"type": "agent.stream", "payload": {"delta": "Hello", "session_id": "...", "message_id": "..."}}
+{"type": "agent.stream.end", "payload": {"session_id": "...", "message_id": "..."}}
 {"type": "agent.response", "payload": {...}}
 {"type": "channel.online", "payload": {...}}
 ```
@@ -194,7 +197,7 @@ MeowClaw addresses all three:
 
 ### v0.2 — Stability & Core Channels
 - [x] Slack channel bridge (`slack-go`) ✅
-- [ ] Streaming responses (chunked WebSocket delivery)
+- [x] Streaming responses (chunked WebSocket delivery) ✅
 - [ ] Chat commands: `/new`, `/reset`, `/status`, `/model`
 - [ ] Auto-reconnect with backoff for all channels
 - [ ] Dockerfile + Docker Compose for one-command deploy

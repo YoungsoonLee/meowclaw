@@ -35,5 +35,16 @@ const (
 	EventChannelError    = "channel.error"
 	EventAgentResponse   = "agent.response"
 	EventAgentThinking   = "agent.thinking"
+	EventAgentStream     = "agent.stream"
+	EventAgentStreamEnd  = "agent.stream.end"
 	EventHealthStatus    = "health.status"
 )
+
+// StreamChunk is broadcast via WebSocket during streaming responses.
+type StreamChunk struct {
+	SessionID string `json:"session_id"`
+	Channel   string `json:"channel"`
+	ChannelID string `json:"channel_id"`
+	Delta     string `json:"delta"`
+	MessageID string `json:"message_id"`
+}
