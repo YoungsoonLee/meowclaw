@@ -12,15 +12,17 @@ import (
 
 // mockProvider returns a canned response for testing.
 type mockProvider struct {
-	response string
-	err      error
-	calls    int
+	response  string
+	err       error
+	calls     int
+	lastModel string
 }
 
 func (m *mockProvider) Name() string { return "mock" }
 
 func (m *mockProvider) Chat(ctx context.Context, req *provider.ChatRequest) (*provider.ChatResponse, error) {
 	m.calls++
+	m.lastModel = req.Model
 	if m.err != nil {
 		return nil, m.err
 	}

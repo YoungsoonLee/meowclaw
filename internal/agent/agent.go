@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -34,6 +35,14 @@ type Agent struct {
 
 	// maxInputRunesOverride > 0 caps inbound user message size; 0 uses config.DefaultMaxInputRunes.
 	maxInputRunesOverride int
+
+	// Runtime metadata for /status (from config at startup).
+	providerName string
+	defaultModel string
+
+	// Per-session model override for /model (ChatRequest.Model).
+	sessionModel   map[string]string
+	sessionModelMu sync.RWMutex
 }
 
 type MemoryStore interface {
@@ -78,6 +87,14 @@ func WithMaxInputRunes(n int) Option {
 	}
 }
 
+// WithRuntimeMeta sets provider label and default model for /status and /model help text.
+func WithRuntimeMeta(providerName, defaultModel string) Option {
+	return func(a *Agent) {
+		a.providerName = strings.TrimSpace(providerName)
+		a.defaultModel = strings.TrimSpace(defaultModel)
+	}
+}
+
 func (a *Agent) effectiveMaxInputRunes() int {
 	if a.maxInputRunesOverride > 0 {
 		return a.maxInputRunesOverride
@@ -109,6 +126,10 @@ func (a *Agent) processInternal(ctx context.Context, msg *message.Message, onChu
 		return nil, fmt.Errorf("message too long (%d runes, max %d)", n, maxR)
 	}
 
+	if cmd, arg, ok := parseChatCommand(msg.Text); ok {
+		return a.handleChatCommand(ctx, msg, cmd, arg)
+	}
+
 	session := a.getOrCreateSession(msg.SessionID)
 
 	a.appendMessage(session, provider.ChatMessage{
@@ -122,6 +143,7 @@ func (a *Agent) processInternal(ctx context.Context, msg *message.Message, onChu
 
 	req := &provider.ChatRequest{
 		Messages: a.buildMessages(session),
+		Model:    a.modelForRequest(msg.SessionID),
 	}
 
 	slog.Debug("agent processing", "session", msg.SessionID, "history_len", len(session.History))
@@ -182,6 +204,12 @@ func (a *Agent) ResetSession(sessionID string) {
 	a.mu.Lock()
 	delete(a.sessions, sessionID)
 	a.mu.Unlock()
+
+	a.sessionModelMu.Lock()
+	if a.sessionModel != nil {
+		delete(a.sessionModel, sessionID)
+	}
+	a.sessionModelMu.Unlock()
 }
 
 func (a *Agent) getOrCreateSession(id string) *Session {

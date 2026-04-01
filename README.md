@@ -15,13 +15,24 @@
 
 ## Why MeowClaw?
 
+MeowClaw targets the same job as heavy “personal AI gateway” stacks — **many chat channels → one LLM → replies back** — but optimizes for **small deploys, predictable ops, and long uptimes**. You get a **single static binary**, **declarative YAML**, and **no Node runtime or container mandatory path**.
+
 | | OpenClaw (Node.js) | MeowClaw (Go) |
 |---|---|---|
-| Install | `npm install -g` + Node 24 | Single binary, zero deps |
-| Binary size | ~200MB+ (node_modules) | ~20MB |
-| Memory | 1GB+ | <50MB |
-| Stability | Restarts every ~50min | Designed to never crash |
-| Setup | Complex JSON config | `meowclaw init` (2 min) |
+| Install | `npm install -g` + Node 24 | **Single binary**, no runtime install |
+| Binary size | ~200MB+ (`node_modules`) | **~20MB** (stripped production build) |
+| Memory | Often 1GB+ in the wild | **Tens of MB** typical |
+| Stability | Frequent gateway restarts / OOM reports | **Long-lived process**; channel work isolated in goroutines |
+| Setup | Large JSON surface | **`meowclaw init`** + `~/.meowclaw/config.yaml` |
+| WhatsApp | Baileys (JS) — common disconnect pain | **[whatsmeow](https://github.com/tulir/whatsmeow)** (Go), keepalive + WAL credentials |
+| Slack | Varies by setup | **Socket Mode** — no public inbound URL |
+| LLM | Often OpenAI-centric | **OpenAI + Anthropic**, streaming, per-session `/model` |
+| Secrets | Often only on disk | **Env overrides** + optional **gateway `api_token`**, config `0600` |
+| Ops profile | Daemon + package ecosystem | **Copy binary, systemd/launchd, edge device** |
+
+**Good fit if you want:** one repo to read, minimal moving parts, SSH-to-VPS or homelab install, CI-friendly builds, and channels without shipping a full JS platform.
+
+**Different direction than:** “clone a large TypeScript monorepo + Docker + vendor CLI to operate” — MeowClaw is deliberately **boring infra**: compile, configure, run.
 
 ## Quick Start
 
@@ -46,6 +57,7 @@ meowclaw up
 - **Web dashboard**: Built-in status & chat UI
 - **Single binary**: No runtime dependencies
 - **Security-minded defaults**: loopback bind, optional gateway API token, WebSocket Origin allowlist, config file `0600`, env overrides for secrets
+- **Chat commands**: `/new`, `/reset`, `/status`, `/model` (per-session model override) on any channel
 
 ## Architecture
 
@@ -149,6 +161,18 @@ MeowClaw is designed to avoid the class of issues seen in large “always-on” 
 
 `GET /api/health` stays unauthenticated for simple liveness checks; it does not return API keys.
 
+### Chat commands (Telegram, Discord, Slack, WebChat, …)
+
+Send these as a normal message (leading `/`). They are handled locally and **do not** call the LLM or store the command text in session history.
+
+| Command | Behavior |
+|---------|----------|
+| `/new` | Clear this chat’s session history and per-chat model override. |
+| `/reset` | Same as `/new` (alias). |
+| `/status` | Show provider, config default model, effective model for this chat, and session id. |
+| `/model` | Show current model for this chat and usage hint. |
+| `/model <name>` | Use `<name>` for **this chat only** in API requests (e.g. `gpt-4o-mini`). `/new` clears the override. |
+
 ## CLI Commands
 
 ```bash
@@ -239,13 +263,16 @@ meowclaw/                          2,413 lines of Go across 15 files
 
 | | OpenClaw | MeowClaw |
 |---|---|---|
-| Binary | npm + Node 24 (~200MB+) | **20MB single binary** |
-| Install | `npm install -g` + complex config | `make build` + `meowclaw init` |
-| WhatsApp | Baileys (JS, unstable, no keepalive) | **whatsmeow (Go-native, built-in keepalive)** |
-| Memory | Sessions are ephemeral | **SQLite + FTS5 full-text search** |
-| Stability | Restarts every ~50min, OOM crashes | Goroutine isolation, stable memory |
-| Slack | Not supported | **Socket Mode (no public URL needed)** |
-| AI Providers | Primarily OpenAI | **OpenAI + Anthropic (extensible)** |
+| Binary | npm + Node 24 (~200MB+) | **~20MB single binary** |
+| Install | `npm install -g` + complex config | **`make build`** + **`meowclaw init`** |
+| WhatsApp | Baileys (JS, unstable, no keepalive) | **whatsmeow (Go-native, keepalive, WAL store)** |
+| Memory | Sessions often ephemeral | **SQLite + FTS5** (search + persistence) |
+| Stability | Restarts ~50min, OOM reports | **Goroutine isolation**, bounded memory profile |
+| Slack | Not a first-class story here | **Socket Mode** (no public URL) |
+| AI | Often OpenAI-first | **OpenAI + Anthropic**, **SSE streaming**, **`/model` per chat** |
+| Gateway | Broad attack surface if exposed | **Loopback default**, optional **API token**, **Origin allowlist** |
+| Config | Large JSON | **Small YAML** + **`base_url` / API path** overrides without rebuild |
+| Audit surface | Large TS monorepo | **Compact Go tree** — agent, gateway, channels in one module |
 
 ### WhatsApp Stability
 
@@ -268,7 +295,7 @@ MeowClaw addresses all three:
 ### v0.2 — Stability & Core Channels
 - [x] Slack channel bridge (`slack-go`) ✅
 - [x] Streaming responses (chunked WebSocket delivery) ✅
-- [ ] Chat commands: `/new`, `/reset`, `/status`, `/model`
+- [x] Chat commands: `/new`, `/reset`, `/status`, `/model`
 - [ ] Auto-reconnect with backoff for all channels
 - [ ] Dockerfile + Docker Compose for one-command deploy
 - [ ] Goreleaser for cross-platform binaries (Linux/macOS/Windows)
