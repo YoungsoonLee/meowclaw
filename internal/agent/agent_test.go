@@ -166,3 +166,134 @@ func TestCustomSystemPrompt(t *testing.T) {
 		t.Errorf("system prompt = %q, want 'You are a pirate.'", ag.systemPrompt)
 	}
 }
+
+// mockStreamProvider implements both Provider and StreamingProvider.
+type mockStreamProvider struct {
+	chunks []string
+	err    error
+	calls  int
+}
+
+func (m *mockStreamProvider) Name() string { return "mock-stream" }
+
+func (m *mockStreamProvider) Chat(ctx context.Context, req *provider.ChatRequest) (*provider.ChatResponse, error) {
+	m.calls++
+	if m.err != nil {
+		return nil, m.err
+	}
+	full := ""
+	for _, c := range m.chunks {
+		full += c
+	}
+	return &provider.ChatResponse{
+		Content: full, Model: "mock-stream-model",
+		InputTokens: 10, OutputTokens: 5, FinishReason: "stop",
+	}, nil
+}
+
+func (m *mockStreamProvider) ChatStream(ctx context.Context, req *provider.ChatRequest, onChunk provider.StreamCallback) (*provider.ChatResponse, error) {
+	m.calls++
+	if m.err != nil {
+		return nil, m.err
+	}
+	full := ""
+	for _, c := range m.chunks {
+		full += c
+		onChunk(c)
+	}
+	return &provider.ChatResponse{
+		Content: full, Model: "mock-stream-model",
+		InputTokens: 10, OutputTokens: 5, FinishReason: "stop",
+	}, nil
+}
+
+func TestSupportsStreamingTrue(t *testing.T) {
+	mock := &mockStreamProvider{chunks: []string{"a"}}
+	ag := New(mock)
+	if !ag.SupportsStreaming() {
+		t.Error("expected SupportsStreaming=true for mockStreamProvider")
+	}
+}
+
+func TestSupportsStreamingFalse(t *testing.T) {
+	mock := &mockProvider{response: "ok"}
+	ag := New(mock)
+	if ag.SupportsStreaming() {
+		t.Error("expected SupportsStreaming=false for mockProvider")
+	}
+}
+
+func TestProcessStreamDeliversChunks(t *testing.T) {
+	mock := &mockStreamProvider{chunks: []string{"Hello", " ", "world", "!"}}
+	ag := New(mock)
+
+	msg := &message.Message{
+		ID:        "stream-1",
+		SessionID: "sess-stream",
+		Text:      "Hi",
+		Timestamp: time.Now(),
+	}
+
+	var received []string
+	reply, err := ag.ProcessStream(context.Background(), msg, func(delta string) {
+		received = append(received, delta)
+	})
+	if err != nil {
+		t.Fatalf("ProcessStream: %v", err)
+	}
+
+	if reply.Text != "Hello world!" {
+		t.Errorf("reply text = %q, want 'Hello world!'", reply.Text)
+	}
+
+	if len(received) != 4 {
+		t.Errorf("received %d chunks, want 4", len(received))
+	}
+	if mock.calls != 1 {
+		t.Errorf("provider called %d times, want 1", mock.calls)
+	}
+}
+
+func TestProcessStreamFallsBackForNonStreamingProvider(t *testing.T) {
+	mock := &mockProvider{response: "fallback response"}
+	ag := New(mock)
+
+	msg := &message.Message{
+		ID:        "fb-1",
+		SessionID: "sess-fb",
+		Text:      "Hi",
+		Timestamp: time.Now(),
+	}
+
+	var chunkCalled bool
+	reply, err := ag.ProcessStream(context.Background(), msg, func(delta string) {
+		chunkCalled = true
+	})
+	if err != nil {
+		t.Fatalf("ProcessStream: %v", err)
+	}
+
+	if reply.Text != "fallback response" {
+		t.Errorf("reply text = %q, want 'fallback response'", reply.Text)
+	}
+	if chunkCalled {
+		t.Error("onChunk should not be called when provider does not support streaming")
+	}
+}
+
+func TestProcessStreamError(t *testing.T) {
+	mock := &mockStreamProvider{err: fmt.Errorf("stream failed")}
+	ag := New(mock)
+
+	msg := &message.Message{
+		ID:        "err-1",
+		SessionID: "sess-err",
+		Text:      "Hi",
+		Timestamp: time.Now(),
+	}
+
+	_, err := ag.ProcessStream(context.Background(), msg, func(delta string) {})
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+}

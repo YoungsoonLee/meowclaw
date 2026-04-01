@@ -65,9 +65,26 @@ func WithMemory(store MemoryStore) Option {
 }
 
 func (a *Agent) Process(ctx context.Context, msg *message.Message) (*message.Message, error) {
+	return a.processInternal(ctx, msg, nil)
+}
+
+// ProcessStream works like Process but calls onChunk for each text delta
+// as the LLM generates the response. Falls back to non-streaming if the
+// provider does not implement StreamingProvider.
+func (a *Agent) ProcessStream(ctx context.Context, msg *message.Message, onChunk provider.StreamCallback) (*message.Message, error) {
+	return a.processInternal(ctx, msg, onChunk)
+}
+
+// SupportsStreaming returns true when the underlying provider implements
+// StreamingProvider.
+func (a *Agent) SupportsStreaming() bool {
+	_, ok := a.provider.(provider.StreamingProvider)
+	return ok
+}
+
+func (a *Agent) processInternal(ctx context.Context, msg *message.Message, onChunk provider.StreamCallback) (*message.Message, error) {
 	session := a.getOrCreateSession(msg.SessionID)
 
-	// persist user message
 	a.appendMessage(session, provider.ChatMessage{
 		Role:    provider.RoleUser,
 		Content: msg.Text,
@@ -77,19 +94,29 @@ func (a *Agent) Process(ctx context.Context, msg *message.Message) (*message.Mes
 		_ = a.memoryStore.Save(ctx, msg.SessionID, string(provider.RoleUser), msg.Text)
 	}
 
-	// build request with conversation history
 	req := &provider.ChatRequest{
 		Messages: a.buildMessages(session),
 	}
 
 	slog.Debug("agent processing", "session", msg.SessionID, "history_len", len(session.History))
 
-	resp, err := a.provider.Chat(ctx, req)
+	var resp *provider.ChatResponse
+	var err error
+
+	if onChunk != nil {
+		if sp, ok := a.provider.(provider.StreamingProvider); ok {
+			resp, err = sp.ChatStream(ctx, req, onChunk)
+		} else {
+			resp, err = a.provider.Chat(ctx, req)
+		}
+	} else {
+		resp, err = a.provider.Chat(ctx, req)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("provider chat: %w", err)
 	}
 
-	// persist assistant response
 	a.appendMessage(session, provider.ChatMessage{
 		Role:    provider.RoleAssistant,
 		Content: resp.Content,

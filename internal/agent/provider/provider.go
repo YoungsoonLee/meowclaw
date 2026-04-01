@@ -30,7 +30,17 @@ type ChatResponse struct {
 	FinishReason string `json:"finish_reason"`
 }
 
+// StreamCallback is invoked for each text delta during streaming.
+type StreamCallback func(delta string)
+
 type Provider interface {
 	Name() string
 	Chat(ctx context.Context, req *ChatRequest) (*ChatResponse, error)
+}
+
+// StreamingProvider extends Provider with streaming support. ChatStream calls
+// onChunk for each text delta and returns the full ChatResponse when done.
+type StreamingProvider interface {
+	Provider
+	ChatStream(ctx context.Context, req *ChatRequest, onChunk StreamCallback) (*ChatResponse, error)
 }
