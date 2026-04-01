@@ -2,7 +2,7 @@ VERSION ?= $(shell date +%Y.%-m.%-d)
 LDFLAGS := -ldflags "-s -w -X main.version=$(VERSION)"
 TAGS := -tags "sqlite_fts5"
 
-.PHONY: build run clean test
+.PHONY: build run clean test docker-build docker-up docker-down
 
 build:
 	CGO_ENABLED=1 go build $(TAGS) $(LDFLAGS) -o meowclaw ./cmd/meowclaw
@@ -18,3 +18,12 @@ test:
 
 install: build
 	cp meowclaw /usr/local/bin/meowclaw
+
+docker-build:
+	docker build -t meowclaw:latest .
+
+docker-up:
+	docker compose up -d --build
+
+docker-down:
+	docker compose down

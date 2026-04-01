@@ -1,0 +1,34 @@
+# First-run template for containers (copied to ${HOME}/.meowclaw/config.yaml).
+# Bind on all interfaces so host port mapping works; prefer a reverse proxy + TLS in production.
+gateway:
+  host: "0.0.0.0"
+  port: 6820
+  verbose: false
+
+channels:
+  telegram:
+    enabled: false
+    bot_token: ""
+  discord:
+    enabled: false
+    bot_token: ""
+  whatsapp:
+    enabled: false
+    db_path: "/data/.meowclaw/whatsapp.db"
+  slack:
+    enabled: false
+    bot_token: ""
+    app_token: ""
+  webchat:
+    enabled: true
+
+agent:
+  provider: "openai"
+  model: "gpt-4o"
+  openai:
+    api_key: ""
+    model: "gpt-4o"
+
+memory:
+  enabled: true
+  db_path: "/data/.meowclaw/memory.db"

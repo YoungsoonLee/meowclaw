@@ -1,0 +1,26 @@
+services:
+  meowclaw:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: meowclaw:latest
+    container_name: meowclaw
+    restart: unless-stopped
+    ports:
+      - "${MEOWCLAW_PORT:-6820}:6820"
+    environment:
+      HOME: /data
+      MEOWCLAW_OPENAI_API_KEY: ${MEOWCLAW_OPENAI_API_KEY:-}
+      MEOWCLAW_ANTHROPIC_API_KEY: ${MEOWCLAW_ANTHROPIC_API_KEY:-}
+      MEOWCLAW_GATEWAY_API_TOKEN: ${MEOWCLAW_GATEWAY_API_TOKEN:-}
+    volumes:
+      - meowclaw_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:6820/api/health >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 25s
+
+volumes:
+  meowclaw_data:

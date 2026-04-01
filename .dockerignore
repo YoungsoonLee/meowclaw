@@ -1,0 +1,14 @@
+.git
+.github
+*.md
+meowclaw
+claw
+dist
+.meowclaw
+.claw
+*.db
+.env
+.env.*
+!.env.example
+agent-transcripts
+.cursor

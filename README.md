@@ -227,6 +227,26 @@ go build -o meowclaw ./cmd/meowclaw
 make build
 ```
 
+## Docker
+
+One-command run (builds image, starts gateway on port **6820**):
+
+```bash
+docker compose up -d --build
+```
+
+- **Data**: named volume `meowclaw_data` mounted at `/data` (`HOME=/data`), so config and SQLite files live under `/data/.meowclaw/` (created on first start from `docker/config.docker.yaml`).
+- **Secrets**: optional env vars (same as bare metal): `MEOWCLAW_OPENAI_API_KEY`, `MEOWCLAW_ANTHROPIC_API_KEY`, `MEOWCLAW_GATEWAY_API_TOKEN`. Copy `.env.example` to `.env` to set them for Compose.
+- **Host port**: override with `MEOWCLAW_PORT` (maps host → container `6820`; change `gateway.port` in config only if you also change the compose port mapping).
+- **Dashboard / WebSocket**: gateway listens on `0.0.0.0` in the bundled Docker config. From another machine, set `gateway.trusted_origins` to include your browser origin (see [Security](#security)).
+- **WhatsApp**: QR appears in `docker compose logs -f`; scan from the host terminal.
+
+```bash
+make docker-up      # same as: docker compose up -d --build
+make docker-build   # image only
+docker compose logs -f meowclaw
+```
+
 ## Project Structure
 
 ```
@@ -255,7 +275,11 @@ meowclaw/                          2,413 lines of Go across 15 files
 │   ├── config/config.go          -- YAML config loader
 │   └── message/message.go        -- Unified message types & event constants
 ├── web/static/index.html         -- Dashboard UI (dark theme, real-time stats)
-├── Makefile                      -- build / run / test / install
+├── Makefile                      -- build / run / test / install / docker-*
+├── Dockerfile
+├── docker-compose.yml
+├── docker/entrypoint.sh           -- seed config under /data/.meowclaw
+├── docker/config.docker.yaml     -- container default (host 0.0.0.0, paths under /data)
 ├── config.example.yaml
 └── .gitignore
 ```
@@ -298,7 +322,7 @@ MeowClaw addresses all three:
 - [x] Streaming responses (chunked WebSocket delivery) ✅
 - [x] Chat commands: `/new`, `/reset`, `/status`, `/model` ✅
 - [x] Auto-reconnect with backoff for all channels ✅
-- [ ] Dockerfile + Docker Compose for one-command deploy
+- [x] Dockerfile + Docker Compose for one-command deploy ✅
 - [ ] Goreleaser for cross-platform binaries (Linux/macOS/Windows)
 
 ### v0.3 — More Providers & Automation
