@@ -36,6 +36,7 @@ type Channel struct {
 	msgOut    atomic.Int64
 	lastErr   string
 	cancel    context.CancelFunc
+	shutdown  atomic.Bool
 	mu        sync.RWMutex
 }
 
@@ -54,7 +55,10 @@ func New(dbPath string) *Channel {
 
 func (c *Channel) Name() string { return "whatsapp" }
 
-func (c *Channel) Start(ctx context.Context) error {
+func (c *Channel) Start(pctx context.Context) error {
+	c.shutdown.Store(false)
+	c.ensureIncoming()
+
 	c.status.Store(int32(channel.StatusConnecting))
 
 	if err := os.MkdirAll(filepath.Dir(c.dbPath), 0755); err != nil {
@@ -63,13 +67,13 @@ func (c *Channel) Start(ctx context.Context) error {
 	}
 
 	dbLog := waLog.Noop
-	container, err := sqlstore.New(ctx, "sqlite3", fmt.Sprintf("file:%s?_journal_mode=WAL&_busy_timeout=5000", c.dbPath), dbLog)
+	container, err := sqlstore.New(pctx, "sqlite3", fmt.Sprintf("file:%s?_journal_mode=WAL&_busy_timeout=5000", c.dbPath), dbLog)
 	if err != nil {
 		c.setError(err.Error())
 		return fmt.Errorf("whatsapp db: %w", err)
 	}
 
-	deviceStore, err := container.GetFirstDevice(ctx)
+	deviceStore, err := container.GetFirstDevice(pctx)
 	if err != nil {
 		c.setError(err.Error())
 		return fmt.Errorf("whatsapp device: %w", err)
@@ -82,7 +86,7 @@ func (c *Channel) Start(ctx context.Context) error {
 
 	if client.Store.ID == nil {
 		// Not logged in: show QR
-		qrChan, _ := client.GetQRChannel(ctx)
+		qrChan, _ := client.GetQRChannel(pctx)
 		if err := client.Connect(); err != nil {
 			c.setError(err.Error())
 			return fmt.Errorf("whatsapp connect: %w", err)
@@ -111,25 +115,41 @@ func (c *Channel) Start(ctx context.Context) error {
 	c.status.Store(int32(channel.StatusConnected))
 	slog.Info("whatsapp connected")
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(pctx)
 	c.cancel = cancel
 
 	// keepalive: send presence every 4 minutes to prevent session timeout
 	go c.keepAlive(ctx)
 
 	<-ctx.Done()
-	return nil
+	if c.shutdown.Load() || pctx.Err() != nil {
+		return nil
+	}
+	c.mu.RLock()
+	le := c.lastErr
+	c.mu.RUnlock()
+	if le != "" {
+		return fmt.Errorf("whatsapp: %s", le)
+	}
+	return fmt.Errorf("whatsapp: connection closed")
 }
 
 func (c *Channel) Stop() error {
+	c.shutdown.Store(true)
 	if c.cancel != nil {
 		c.cancel()
 	}
 	if c.client != nil {
 		c.client.Disconnect()
 	}
+	c.client = nil
 	c.status.Store(int32(channel.StatusDisconnected))
-	close(c.incoming)
+	c.mu.Lock()
+	if c.incoming != nil {
+		close(c.incoming)
+	}
+	c.incoming = make(chan *message.Message, 256)
+	c.mu.Unlock()
 	return nil
 }
 
@@ -157,7 +177,17 @@ func (c *Channel) Send(ctx context.Context, msg *message.Message) error {
 }
 
 func (c *Channel) Receive() <-chan *message.Message {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.incoming
+}
+
+func (c *Channel) ensureIncoming() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.incoming == nil {
+		c.incoming = make(chan *message.Message, 256)
+	}
 }
 
 func (c *Channel) Health() channel.Health {
@@ -228,6 +258,12 @@ func (c *Channel) eventHandler(evt interface{}) {
 	case *events.LoggedOut:
 		c.setError("logged out by server")
 		slog.Error("whatsapp: logged out - credentials may need refresh")
+		c.mu.RLock()
+		cancel := c.cancel
+		c.mu.RUnlock()
+		if cancel != nil {
+			cancel()
+		}
 	}
 }
 

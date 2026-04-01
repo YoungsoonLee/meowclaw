@@ -92,32 +92,9 @@ func (g *Gateway) Start(ctx context.Context) error {
 	go g.routeOutbound(ctx)
 	go g.processInbound(ctx)
 
-	// start all registered channels
 	for name, ch := range g.channels {
 		slog.Info("starting channel", "name", name)
-		go func(name string, ch channel.Channel) {
-			if err := ch.Start(ctx); err != nil {
-				slog.Error("channel start failed", "name", name, "error", err)
-				g.hub.Broadcast(&message.Event{
-					Type: message.EventChannelError,
-					Payload: map[string]string{
-						"channel": name,
-						"error":   err.Error(),
-					},
-				})
-				return
-			}
-			g.hub.Broadcast(&message.Event{
-				Type:    message.EventChannelOnline,
-				Payload: map[string]string{"channel": name},
-			})
-
-			// pump channel messages into hub
-			for msg := range ch.Receive() {
-				g.msgIn.Add(1)
-				g.hub.Inbound() <- msg
-			}
-		}(name, ch)
+		go g.runChannel(ctx, name, ch)
 	}
 
 	mux := http.NewServeMux()

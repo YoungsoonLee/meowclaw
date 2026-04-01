@@ -58,6 +58,7 @@ meowclaw up
 - **Single binary**: No runtime dependencies
 - **Security-minded defaults**: loopback bind, optional gateway API token, WebSocket Origin allowlist, config file `0600`, env overrides for secrets
 - **Chat commands**: `/new`, `/reset`, `/status`, `/model` (per-session model override) on any channel
+- **Channel auto-reconnect**: external bridges (Telegram, Discord, Slack, WhatsApp) retry with exponential backoff (1s → … → 5m cap); WebChat is in-process only
 
 ## Architecture
 
@@ -295,8 +296,8 @@ MeowClaw addresses all three:
 ### v0.2 — Stability & Core Channels
 - [x] Slack channel bridge (`slack-go`) ✅
 - [x] Streaming responses (chunked WebSocket delivery) ✅
-- [x] Chat commands: `/new`, `/reset`, `/status`, `/model`
-- [ ] Auto-reconnect with backoff for all channels
+- [x] Chat commands: `/new`, `/reset`, `/status`, `/model` ✅
+- [x] Auto-reconnect with backoff for all channels ✅
 - [ ] Dockerfile + Docker Compose for one-command deploy
 - [ ] Goreleaser for cross-platform binaries (Linux/macOS/Windows)
 

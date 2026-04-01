@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -16,6 +17,8 @@ import (
 	"github.com/YoungsoonLee/meowclaw/internal/message"
 )
 
+var errUpdatesClosed = errors.New("updates channel closed")
+
 type Channel struct {
 	token     string
 	bot       *tgbotapi.BotAPI
@@ -26,6 +29,7 @@ type Channel struct {
 	msgOut    atomic.Int64
 	lastErr   string
 	cancel    context.CancelFunc
+	shutdown  atomic.Bool
 	mu        sync.RWMutex
 }
 
@@ -40,7 +44,10 @@ func New(token string) *Channel {
 
 func (c *Channel) Name() string { return "telegram" }
 
-func (c *Channel) Start(ctx context.Context) error {
+func (c *Channel) Start(pctx context.Context) error {
+	c.shutdown.Store(false)
+	c.ensureIncoming()
+
 	c.status.Store(int32(channel.StatusConnecting))
 
 	bot, err := tgbotapi.NewBotAPI(c.token)
@@ -54,9 +61,10 @@ func (c *Channel) Start(ctx context.Context) error {
 	c.status.Store(int32(channel.StatusConnected))
 	slog.Info("telegram connected", "bot", bot.Self.UserName)
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(pctx)
 	c.cancel = cancel
 
+	var updatesDead atomic.Bool
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 30
 	updates := bot.GetUpdatesChan(u)
@@ -68,6 +76,9 @@ func (c *Channel) Start(ctx context.Context) error {
 				return
 			case update, ok := <-updates:
 				if !ok {
+					updatesDead.Store(true)
+					c.setError("updates channel closed")
+					cancel()
 					return
 				}
 				c.handleUpdate(update)
@@ -76,10 +87,17 @@ func (c *Channel) Start(ctx context.Context) error {
 	}()
 
 	<-ctx.Done()
+	if c.shutdown.Load() || pctx.Err() != nil {
+		return nil
+	}
+	if updatesDead.Load() {
+		return fmt.Errorf("telegram: %w", errUpdatesClosed)
+	}
 	return nil
 }
 
 func (c *Channel) Stop() error {
+	c.shutdown.Store(true)
 	if c.cancel != nil {
 		c.cancel()
 	}
@@ -87,7 +105,12 @@ func (c *Channel) Stop() error {
 		c.bot.StopReceivingUpdates()
 	}
 	c.status.Store(int32(channel.StatusDisconnected))
-	close(c.incoming)
+	c.mu.Lock()
+	if c.incoming != nil {
+		close(c.incoming)
+	}
+	c.incoming = make(chan *message.Message, 256)
+	c.mu.Unlock()
 	return nil
 }
 
@@ -112,7 +135,17 @@ func (c *Channel) Send(ctx context.Context, msg *message.Message) error {
 }
 
 func (c *Channel) Receive() <-chan *message.Message {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.incoming
+}
+
+func (c *Channel) ensureIncoming() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.incoming == nil {
+		c.incoming = make(chan *message.Message, 256)
+	}
 }
 
 func (c *Channel) Health() channel.Health {

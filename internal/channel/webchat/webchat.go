@@ -34,6 +34,7 @@ func New() *Channel {
 func (c *Channel) Name() string { return "webchat" }
 
 func (c *Channel) Start(ctx context.Context) error {
+	c.ensureIncoming()
 	c.startedAt = time.Now()
 	c.status.Store(int32(channel.StatusConnected))
 	<-ctx.Done()
@@ -42,7 +43,12 @@ func (c *Channel) Start(ctx context.Context) error {
 
 func (c *Channel) Stop() error {
 	c.status.Store(int32(channel.StatusDisconnected))
-	close(c.incoming)
+	c.mu.Lock()
+	if c.incoming != nil {
+		close(c.incoming)
+	}
+	c.incoming = make(chan *message.Message, 256)
+	c.mu.Unlock()
 	return nil
 }
 
@@ -61,7 +67,17 @@ func (c *Channel) Send(ctx context.Context, msg *message.Message) error {
 }
 
 func (c *Channel) Receive() <-chan *message.Message {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.incoming
+}
+
+func (c *Channel) ensureIncoming() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.incoming == nil {
+		c.incoming = make(chan *message.Message, 256)
+	}
 }
 
 func (c *Channel) Health() channel.Health {
@@ -81,7 +97,12 @@ func (c *Channel) Health() channel.Health {
 
 func (c *Channel) InjectMessage(msg *message.Message) {
 	c.msgIn.Add(1)
-	c.incoming <- msg
+	c.mu.RLock()
+	ch := c.incoming
+	c.mu.RUnlock()
+	if ch != nil {
+		ch <- msg
+	}
 }
 
 func (c *Channel) Subscribe(sessionID string) <-chan *message.Message {

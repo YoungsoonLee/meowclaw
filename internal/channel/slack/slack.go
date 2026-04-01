@@ -32,6 +32,7 @@ type Channel struct {
 	lastErr   string
 	botUserID string
 	cancel    context.CancelFunc
+	shutdown  atomic.Bool
 	mu        sync.RWMutex
 }
 
@@ -47,7 +48,10 @@ func New(botToken, appToken string) *Channel {
 
 func (c *Channel) Name() string { return "slack" }
 
-func (c *Channel) Start(ctx context.Context) error {
+func (c *Channel) Start(pctx context.Context) error {
+	c.shutdown.Store(false)
+	c.ensureIncoming()
+
 	c.status.Store(int32(channel.StatusConnecting))
 
 	c.api = goslack.New(
@@ -65,27 +69,36 @@ func (c *Channel) Start(ctx context.Context) error {
 
 	c.socket = socketmode.New(c.api)
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(pctx)
 	c.cancel = cancel
 	c.startedAt = time.Now()
 
 	go c.handleEvents(ctx)
 
 	slog.Info("slack socket mode starting")
-	if err := c.socket.RunContext(ctx); err != nil && ctx.Err() == nil {
+	err = c.socket.RunContext(ctx)
+	if c.shutdown.Load() || pctx.Err() != nil {
+		return nil
+	}
+	if err != nil {
 		c.setError(fmt.Sprintf("socket mode error: %v", err))
 		return fmt.Errorf("slack socket mode: %w", err)
 	}
-
-	return nil
+	return fmt.Errorf("slack socket mode stopped")
 }
 
 func (c *Channel) Stop() error {
+	c.shutdown.Store(true)
 	if c.cancel != nil {
 		c.cancel()
 	}
 	c.status.Store(int32(channel.StatusDisconnected))
-	close(c.incoming)
+	c.mu.Lock()
+	if c.incoming != nil {
+		close(c.incoming)
+	}
+	c.incoming = make(chan *message.Message, 256)
+	c.mu.Unlock()
 	return nil
 }
 
@@ -105,7 +118,17 @@ func (c *Channel) Send(ctx context.Context, msg *message.Message) error {
 }
 
 func (c *Channel) Receive() <-chan *message.Message {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.incoming
+}
+
+func (c *Channel) ensureIncoming() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.incoming == nil {
+		c.incoming = make(chan *message.Message, 256)
+	}
 }
 
 func (c *Channel) Health() channel.Health {

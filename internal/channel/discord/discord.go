@@ -26,6 +26,7 @@ type Channel struct {
 	lastErr   string
 	botID     string
 	cancel    context.CancelFunc
+	shutdown  atomic.Bool
 	mu        sync.RWMutex
 }
 
@@ -40,7 +41,10 @@ func New(token string) *Channel {
 
 func (c *Channel) Name() string { return "discord" }
 
-func (c *Channel) Start(ctx context.Context) error {
+func (c *Channel) Start(pctx context.Context) error {
+	c.shutdown.Store(false)
+	c.ensureIncoming()
+
 	c.status.Store(int32(channel.StatusConnecting))
 
 	session, err := discordgo.New("Bot " + c.token)
@@ -76,22 +80,32 @@ func (c *Channel) Start(ctx context.Context) error {
 	c.session = session
 	c.startedAt = time.Now()
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(pctx)
 	c.cancel = cancel
 
 	<-ctx.Done()
-	return nil
+	if c.shutdown.Load() || pctx.Err() != nil {
+		return nil
+	}
+	return fmt.Errorf("discord: session ended")
 }
 
 func (c *Channel) Stop() error {
+	c.shutdown.Store(true)
 	if c.cancel != nil {
 		c.cancel()
 	}
 	if c.session != nil {
 		c.session.Close()
 	}
+	c.session = nil
 	c.status.Store(int32(channel.StatusDisconnected))
-	close(c.incoming)
+	c.mu.Lock()
+	if c.incoming != nil {
+		close(c.incoming)
+	}
+	c.incoming = make(chan *message.Message, 256)
+	c.mu.Unlock()
 	return nil
 }
 
@@ -110,7 +124,17 @@ func (c *Channel) Send(ctx context.Context, msg *message.Message) error {
 }
 
 func (c *Channel) Receive() <-chan *message.Message {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.incoming
+}
+
+func (c *Channel) ensureIncoming() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.incoming == nil {
+		c.incoming = make(chan *message.Message, 256)
+	}
 }
 
 func (c *Channel) Health() channel.Health {
