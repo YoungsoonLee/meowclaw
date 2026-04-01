@@ -38,7 +38,7 @@ meowclaw up
 
 ## Features
 
-- **Multi-channel**: Telegram, Discord, WhatsApp (whatsmeow), WebChat
+- **Multi-channel**: Telegram, Discord, WhatsApp (whatsmeow), Slack (Socket Mode), WebChat
 - **Multi-provider AI**: OpenAI, Anthropic (extensible)
 - **Persistent memory**: SQLite + FTS5 full-text search
 - **WebSocket API**: Real-time message streaming
@@ -48,7 +48,7 @@ meowclaw up
 ## Architecture
 
 ```
-Telegram / Discord / WhatsApp / WebChat
+Telegram / Discord / WhatsApp / Slack / WebChat
                |
                v
    +------------------------+
@@ -145,6 +145,7 @@ meowclaw/                          2,413 lines of Go across 15 files
 │   │   ├── telegram/telegram.go  -- Telegram bridge (go-telegram-bot-api)
 │   │   ├── discord/discord.go    -- Discord bridge (discordgo)
 │   │   ├── whatsapp/whatsapp.go  -- WhatsApp bridge (whatsmeow, Go-native)
+│   │   ├── slack/slack.go        -- Slack bridge (slack-go, Socket Mode)
 │   │   └── webchat/webchat.go    -- Built-in WebChat pass-through
 │   ├── agent/
 │   │   ├── agent.go              -- LLM agent runtime with session management
@@ -170,6 +171,7 @@ meowclaw/                          2,413 lines of Go across 15 files
 | WhatsApp | Baileys (JS, unstable, no keepalive) | **whatsmeow (Go-native, built-in keepalive)** |
 | Memory | Sessions are ephemeral | **SQLite + FTS5 full-text search** |
 | Stability | Restarts every ~50min, OOM crashes | Goroutine isolation, stable memory |
+| Slack | Not supported | **Socket Mode (no public URL needed)** |
 | AI Providers | Primarily OpenAI | **OpenAI + Anthropic (extensible)** |
 
 ### WhatsApp Stability
@@ -191,7 +193,7 @@ MeowClaw addresses all three:
 ## Roadmap
 
 ### v0.2 — Stability & Core Channels
-- [ ] Slack channel bridge (`slack-go`)
+- [x] Slack channel bridge (`slack-go`) ✅
 - [ ] Streaming responses (chunked WebSocket delivery)
 - [ ] Chat commands: `/new`, `/reset`, `/status`, `/model`
 - [ ] Auto-reconnect with backoff for all channels
