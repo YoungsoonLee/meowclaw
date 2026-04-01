@@ -25,6 +25,7 @@ type ChannelsConfig struct {
 	Telegram *TelegramConfig `yaml:"telegram,omitempty"`
 	Discord  *DiscordConfig  `yaml:"discord,omitempty"`
 	WhatsApp *WhatsAppConfig `yaml:"whatsapp,omitempty"`
+	Slack    *SlackConfig    `yaml:"slack,omitempty"`
 	WebChat  *WebChatConfig  `yaml:"webchat,omitempty"`
 }
 
@@ -41,6 +42,12 @@ type DiscordConfig struct {
 type WhatsAppConfig struct {
 	Enabled  bool   `yaml:"enabled"`
 	DBPath   string `yaml:"db_path"`
+}
+
+type SlackConfig struct {
+	Enabled  bool   `yaml:"enabled"`
+	BotToken string `yaml:"bot_token"`
+	AppToken string `yaml:"app_token"`
 }
 
 type WebChatConfig struct {

@@ -13,6 +13,10 @@ channels:
   whatsapp:
     enabled: false
     db_path: ""
+  slack:
+    enabled: false
+    bot_token: ""             # xoxb-... (Bot User OAuth Token)
+    app_token: ""             # xapp-... (App-Level Token with connections:write)
   webchat:
     enabled: true
 
