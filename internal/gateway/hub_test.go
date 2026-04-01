@@ -9,7 +9,7 @@ import (
 )
 
 func TestHubRegisterUnregister(t *testing.T) {
-	hub := NewHub()
+	hub := NewHub(0)
 	go hub.Run()
 
 	c := &Client{
@@ -34,7 +34,7 @@ func TestHubRegisterUnregister(t *testing.T) {
 }
 
 func TestHubBroadcast(t *testing.T) {
-	hub := NewHub()
+	hub := NewHub(0)
 	go hub.Run()
 
 	c1 := &Client{hub: hub, send: make(chan []byte, 256), id: "c1"}
@@ -68,7 +68,7 @@ func TestHubBroadcast(t *testing.T) {
 }
 
 func TestHubInboundForwardsToAgentInbox(t *testing.T) {
-	hub := NewHub()
+	hub := NewHub(0)
 	go hub.Run()
 
 	msg := &message.Message{
@@ -91,7 +91,7 @@ func TestHubInboundForwardsToAgentInbox(t *testing.T) {
 }
 
 func TestHubSendCommand(t *testing.T) {
-	hub := NewHub()
+	hub := NewHub(0)
 	go hub.Run()
 
 	c := &Client{hub: hub, send: make(chan []byte, 256), id: "sender"}
@@ -126,7 +126,7 @@ func TestHubSendCommand(t *testing.T) {
 }
 
 func TestHubPingCommand(t *testing.T) {
-	hub := NewHub()
+	hub := NewHub(0)
 	go hub.Run()
 
 	c := &Client{hub: hub, send: make(chan []byte, 256), id: "pinger"}

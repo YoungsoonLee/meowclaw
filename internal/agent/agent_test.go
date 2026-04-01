@@ -297,3 +297,20 @@ func TestProcessStreamError(t *testing.T) {
 		t.Fatal("expected error, got nil")
 	}
 }
+
+func TestProcessRejectsOversizedMessage(t *testing.T) {
+	mock := &mockProvider{response: "ok"}
+	ag := New(mock, WithMaxInputRunes(5))
+
+	msg := &message.Message{
+		ID:        "big",
+		SessionID: "sess-big",
+		Text:      "123456",
+		Timestamp: time.Now(),
+	}
+
+	_, err := ag.Process(context.Background(), msg)
+	if err == nil {
+		t.Fatal("expected error for oversized message")
+	}
+}

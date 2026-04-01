@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"log/slog"
 	"sync"
+	"unicode/utf8"
 
+	"github.com/YoungsoonLee/meowclaw/internal/config"
 	"github.com/YoungsoonLee/meowclaw/internal/message"
 )
 
@@ -18,18 +20,24 @@ type Hub struct {
 	outbound   chan *message.Message // messages to channels
 	agentInbox chan *message.Message // copy of inbound for agent processing
 	mu         sync.RWMutex
+
+	maxSendTextRunes int
 }
 
-func NewHub() *Hub {
+func NewHub(maxSendTextRunes int) *Hub {
+	if maxSendTextRunes <= 0 {
+		maxSendTextRunes = config.DefaultMaxInputRunes
+	}
 	return &Hub{
-		clients:    make(map[*Client]bool),
-		broadcast:  make(chan []byte, 256),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
-		command:    make(chan *clientCommand, 256),
-		inbound:    make(chan *message.Message, 256),
-		outbound:   make(chan *message.Message, 256),
-		agentInbox: make(chan *message.Message, 256),
+		clients:          make(map[*Client]bool),
+		broadcast:        make(chan []byte, 256),
+		register:         make(chan *Client),
+		unregister:       make(chan *Client),
+		command:          make(chan *clientCommand, 256),
+		inbound:          make(chan *message.Message, 256),
+		outbound:         make(chan *message.Message, 256),
+		agentInbox:       make(chan *message.Message, 256),
+		maxSendTextRunes: maxSendTextRunes,
 	}
 }
 
@@ -112,6 +120,10 @@ func (h *Hub) handleCommand(cc *clientCommand) {
 		var msg message.Message
 		if err := json.Unmarshal(cc.cmd.Payload, &msg); err != nil {
 			slog.Warn("invalid send payload", "client", cc.client.id, "error", err)
+			return
+		}
+		if n := utf8.RuneCountInString(msg.Text); n > h.maxSendTextRunes {
+			slog.Warn("ws send rejected: text too long", "client", cc.client.id, "runes", n, "max", h.maxSendTextRunes)
 			return
 		}
 		msg.Direction = message.Outbound

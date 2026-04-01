@@ -1,7 +1,11 @@
 gateway:
   port: 6820
-  host: "127.0.0.1"
+  host: "127.0.0.1"              # keep loopback unless behind a reverse proxy + TLS
   verbose: false
+  # api_token: ""                # if set: Bearer required for /api/send, /api/channels; ?token= for WebSocket
+  # trusted_origins: []         # WebSocket Origin allowlist; empty = http://<host>:port + localhost
+  # allow_any_websocket_origin: false  # true = disable Origin check (not recommended)
+  # max_api_body_bytes: 1048576  # default 1 MiB
 
 channels:
   telegram:
@@ -23,6 +27,7 @@ channels:
 agent:
   provider: "openai"       # openai | anthropic
   model: "gpt-4o"
+  # max_input_runes: 100000   # cap one user message; omit for default (100000)
   openai:
     api_key: ""
     model: "gpt-4o"

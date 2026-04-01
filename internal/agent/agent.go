@@ -6,8 +6,10 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/YoungsoonLee/meowclaw/internal/agent/provider"
+	"github.com/YoungsoonLee/meowclaw/internal/config"
 	"github.com/YoungsoonLee/meowclaw/internal/message"
 )
 
@@ -29,6 +31,9 @@ type Agent struct {
 
 	// optional memory store
 	memoryStore MemoryStore
+
+	// maxInputRunesOverride > 0 caps inbound user message size; 0 uses config.DefaultMaxInputRunes.
+	maxInputRunesOverride int
 }
 
 type MemoryStore interface {
@@ -64,6 +69,22 @@ func WithMemory(store MemoryStore) Option {
 	return func(a *Agent) { a.memoryStore = store }
 }
 
+// WithMaxInputRunes sets the maximum rune length for one inbound user message (channels + gateway).
+func WithMaxInputRunes(n int) Option {
+	return func(a *Agent) {
+		if n > 0 {
+			a.maxInputRunesOverride = n
+		}
+	}
+}
+
+func (a *Agent) effectiveMaxInputRunes() int {
+	if a.maxInputRunesOverride > 0 {
+		return a.maxInputRunesOverride
+	}
+	return config.DefaultMaxInputRunes
+}
+
 func (a *Agent) Process(ctx context.Context, msg *message.Message) (*message.Message, error) {
 	return a.processInternal(ctx, msg, nil)
 }
@@ -83,6 +104,11 @@ func (a *Agent) SupportsStreaming() bool {
 }
 
 func (a *Agent) processInternal(ctx context.Context, msg *message.Message, onChunk provider.StreamCallback) (*message.Message, error) {
+	maxR := a.effectiveMaxInputRunes()
+	if n := utf8.RuneCountInString(msg.Text); n > maxR {
+		return nil, fmt.Errorf("message too long (%d runes, max %d)", n, maxR)
+	}
+
 	session := a.getOrCreateSession(msg.SessionID)
 
 	a.appendMessage(session, provider.ChatMessage{

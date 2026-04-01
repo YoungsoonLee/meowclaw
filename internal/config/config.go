@@ -19,6 +19,18 @@ type GatewayConfig struct {
 	Port    int    `yaml:"port"`
 	Host    string `yaml:"host"`
 	Verbose bool   `yaml:"verbose"`
+
+	// APIToken, if set, requires Bearer token or (for WebSocket) ?token= for /api/send, /api/channels, /ws.
+	APIToken string `yaml:"api_token,omitempty"`
+
+	// TrustedOrigins lists allowed WebSocket Origin values. Empty defaults to this host + localhost on gateway.port.
+	TrustedOrigins []string `yaml:"trusted_origins,omitempty"`
+
+	// AllowAnyWebsocketOrigin disables Origin checks (not recommended; exposes CSRF-style abuse if gateway is reachable).
+	AllowAnyWebsocketOrigin bool `yaml:"allow_any_websocket_origin,omitempty"`
+
+	// MaxAPIBodyBytes caps JSON body size for /api/send (0 = DefaultMaxAPIBodyBytes).
+	MaxAPIBodyBytes int64 `yaml:"max_api_body_bytes,omitempty"`
 }
 
 type ChannelsConfig struct {
@@ -55,10 +67,11 @@ type WebChatConfig struct {
 }
 
 type AgentConfig struct {
-	Model     string           `yaml:"model"`
-	Provider  string           `yaml:"provider"`
-	OpenAI    *OpenAIConfig    `yaml:"openai,omitempty"`
-	Anthropic *AnthropicConfig `yaml:"anthropic,omitempty"`
+	Model         string           `yaml:"model"`
+	Provider      string           `yaml:"provider"`
+	OpenAI        *OpenAIConfig    `yaml:"openai,omitempty"`
+	Anthropic     *AnthropicConfig `yaml:"anthropic,omitempty"`
+	MaxInputRunes int              `yaml:"max_input_runes,omitempty"` // 0 = DefaultMaxInputRunes
 }
 
 type OpenAIConfig struct {
@@ -124,7 +137,7 @@ func Load(path string) (*Config, error) {
 }
 
 func (c *Config) Save(path string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return fmt.Errorf("create config dir: %w", err)
 	}
 
@@ -133,7 +146,7 @@ func (c *Config) Save(path string) error {
 		return fmt.Errorf("marshal config: %w", err)
 	}
 
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0600)
 }
 
 func DefaultConfigPath() string {

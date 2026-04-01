@@ -45,6 +45,7 @@ meowclaw up
 - **WebSocket API**: Real-time message streaming
 - **Web dashboard**: Built-in status & chat UI
 - **Single binary**: No runtime dependencies
+- **Security-minded defaults**: loopback bind, optional gateway API token, WebSocket Origin allowlist, config file `0600`, env overrides for secrets
 
 ## Architecture
 
@@ -131,6 +132,23 @@ agent:
     messages_path: "/v1/messages"
 ```
 
+## Security
+
+MeowClaw is designed to avoid the class of issues seen in large “always-on” AI gateways: **internet-exposed control planes**, **unauthenticated HTTP/WebSocket**, and **secrets-only-on-disk**.
+
+| Topic | What we do |
+|-------|------------|
+| **Network** | Default `gateway.host` is `127.0.0.1`. Binding to `0.0.0.0` or a LAN IP logs a warning; use a reverse proxy + TLS for remote access, not raw exposure. |
+| **Gateway token** | Optional `gateway.api_token`. When set, `POST /api/send` and `GET /api/channels` require `Authorization: Bearer <token>`. WebSocket accepts the same token as `?token=` (dashboard: open `http://127.0.0.1:6820/?token=YOUR_TOKEN`). |
+| **WebSocket Origin** | By default, only Origins matching your gateway host/port and `localhost` are allowed. Override with `gateway.trusted_origins` or, only if you must, `gateway.allow_any_websocket_origin: true`. |
+| **Secrets** | `ApplySecretsFromEnv` after load: `MEOWCLAW_OPENAI_API_KEY`, `MEOWCLAW_ANTHROPIC_API_KEY`, `MEOWCLAW_GATEWAY_API_TOKEN` override YAML (so production can avoid keys in files). `meowclaw send` accepts `--api-token` or `MEOWCLAW_GATEWAY_API_TOKEN`. |
+| **Config file** | Saved with mode `0600`; config directory created as `0700`. |
+| **Input limits** | `gateway.max_api_body_bytes` (default 1 MiB) for `/api/send`; `agent.max_input_runes` (default 100000) for one user message (HTTP, WebSocket WebChat, and agent). |
+| **Data at rest** | Conversation memory is SQLite under `~/.meowclaw/` (not encrypted in-app). Protect the directory (permissions, full-disk encryption); treat `config.yaml` as sensitive. |
+| **Command injection** | No shell execution of user or config strings in the gateway path; `meowclaw send` uses JSON encoding (not string formatting) for the request body. |
+
+`GET /api/health` stays unauthenticated for simple liveness checks; it does not return API keys.
+
 ## CLI Commands
 
 ```bash
@@ -139,6 +157,7 @@ meowclaw up            # Start the gateway
 meowclaw up -v         # Start with verbose logging
 meowclaw status        # Check gateway health
 meowclaw send --channel telegram --to CHAT_ID -m "Hello"
+meowclaw send ... --api-token "$MEOWCLAW_GATEWAY_API_TOKEN"   # when gateway.api_token is set
 ```
 
 ## API
@@ -151,11 +170,15 @@ GET /api/health
 ### Send Message
 ```
 POST /api/send
+Authorization: Bearer <gateway.api_token>   # if configured
+Content-Type: application/json
 {"channel": "telegram", "to": "123456", "text": "Hello"}
 ```
 
 ### WebSocket
 ```
+ws://127.0.0.1:6820/ws?token=<gateway.api_token>   # if configured (browsers cannot set WS Authorization)
+# or
 ws://127.0.0.1:6820/ws
 
 // Send

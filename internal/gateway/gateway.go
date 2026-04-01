@@ -9,6 +9,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -37,18 +38,14 @@ type Gateway struct {
 	msgIn         atomic.Int64
 	msgOut        atomic.Int64
 	mu            sync.RWMutex
-}
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin:     func(r *http.Request) bool { return true },
+	upgrader websocket.Upgrader
 }
 
 func New(cfg *config.Config) *Gateway {
 	return &Gateway{
 		cfg:      cfg,
-		hub:      NewHub(),
+		hub:      NewHub(maxInputRunesForAgent(cfg.Agent)),
 		channels: make(map[string]channel.Channel),
 	}
 }
@@ -69,6 +66,27 @@ func (g *Gateway) OnStream(h StreamHandler) {
 
 func (g *Gateway) Start(ctx context.Context) error {
 	g.startAt = time.Now()
+
+	g.upgrader = websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			ok := g.websocketOriginAllowed(r)
+			if !ok {
+				slog.Warn("websocket origin rejected", "origin", r.Header.Get("Origin"))
+			}
+			return ok
+		},
+	}
+	if bindAddressExposesLAN(g.cfg.Gateway.Host) {
+		slog.Warn("gateway listens on a non-loopback host — prefer reverse proxy + TLS; never expose raw to the internet without gateway.api_token")
+		if !g.gatewayAuthRequired() {
+			slog.Warn("gateway.api_token is unset — /api/send and /ws accept unauthenticated requests on this interface")
+		}
+	}
+	if g.gatewayAuthRequired() {
+		slog.Info("gateway API token enabled — add ?token=... to the dashboard URL for WebSocket; use Authorization: Bearer for HTTP API")
+	}
 
 	go g.hub.Run()
 	go g.routeOutbound(ctx)
@@ -105,8 +123,18 @@ func (g *Gateway) Start(ctx context.Context) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", g.handleWebSocket)
 	mux.HandleFunc("/api/health", g.handleHealth)
-	mux.HandleFunc("/api/channels", g.handleChannels)
-	mux.HandleFunc("/api/send", g.handleSend)
+	mux.HandleFunc("/api/channels", func(w http.ResponseWriter, r *http.Request) {
+		if !g.gatewayAuthOK(w, r, false) {
+			return
+		}
+		g.handleChannels(w, r)
+	})
+	mux.HandleFunc("/api/send", func(w http.ResponseWriter, r *http.Request) {
+		if !g.gatewayAuthOK(w, r, false) {
+			return
+		}
+		g.handleSend(w, r)
+	})
 	mux.Handle("/", http.FileServer(http.Dir("web/static")))
 
 	addr := fmt.Sprintf("%s:%d", g.cfg.Gateway.Host, g.cfg.Gateway.Port)
@@ -223,7 +251,10 @@ func (g *Gateway) routeOutbound(ctx context.Context) {
 }
 
 func (g *Gateway) handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+	if !g.gatewayAuthOK(w, r, true) {
+		return
+	}
+	conn, err := g.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		slog.Error("websocket upgrade failed", "error", err)
 		return
@@ -246,12 +277,12 @@ func (g *Gateway) handleHealth(w http.ResponseWriter, r *http.Request) {
 	g.mu.RUnlock()
 
 	status := map[string]interface{}{
-		"status":     "ok",
-		"uptime":     int64(time.Since(g.startAt).Seconds()),
-		"clients":    g.hub.ClientCount(),
+		"status":       "ok",
+		"uptime":       int64(time.Since(g.startAt).Seconds()),
+		"clients":      g.hub.ClientCount(),
 		"messages_in":  g.msgIn.Load(),
 		"messages_out": g.msgOut.Load(),
-		"channels":   channels,
+		"channels":     channels,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -277,9 +308,16 @@ func (g *Gateway) handleSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	r.Body = http.MaxBytesReader(w, r.Body, g.effectiveMaxAPIBodyBytes())
 	var msg message.Message
 	if err := json.NewDecoder(r.Body).Decode(&msg); err != nil {
 		http.Error(w, "invalid body: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	maxR := g.effectiveMaxInputRunes()
+	if n := utf8.RuneCountInString(msg.Text); n > maxR {
+		http.Error(w, fmt.Sprintf("text too large (%d runes, max %d)", n, maxR), http.StatusRequestEntityTooLarge)
 		return
 	}
 

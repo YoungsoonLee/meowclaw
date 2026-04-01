@@ -103,7 +103,13 @@ let streamingBubbles = {}; // messageID -> DOM element for in-flight streams
 
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  ws = new WebSocket(`${proto}//${location.host}/ws`);
+  const params = new URLSearchParams(location.search);
+  const token = params.get('token');
+  let path = '/ws';
+  if (token) {
+    path = '/ws?token=' + encodeURIComponent(token);
+  }
+  ws = new WebSocket(`${proto}//${location.host}${path}`);
 
   ws.onopen = () => {
     document.getElementById('statusDot').className = 'dot green';
