@@ -39,7 +39,7 @@ meowclaw up
 ## Features
 
 - **Multi-channel**: Telegram, Discord, WhatsApp (whatsmeow), Slack (Socket Mode), WebChat
-- **Multi-provider AI**: OpenAI, Anthropic (extensible)
+- **Multi-provider AI**: OpenAI, Anthropic (extensible; optional `base_url` + API path overrides)
 - **Persistent memory**: SQLite + FTS5 full-text search
 - **Streaming responses**: ChatGPT-like real-time token delivery via WebSocket
 - **WebSocket API**: Real-time message streaming
@@ -73,6 +73,7 @@ Config lives at `~/.meowclaw/config.yaml`. See `config.example.yaml` for all opt
 ```yaml
 gateway:
   port: 6820
+  host: "127.0.0.1"
 
 channels:
   telegram:
@@ -80,9 +81,54 @@ channels:
     bot_token: "YOUR_TOKEN"
 
 agent:
+  provider: openai   # openai | anthropic
+  openai:
+    api_key: "sk-..."
+    model: "gpt-4o"
+  anthropic:
+    api_key: ""
+    model: "claude-sonnet-4-20250514"
+
+memory:
+  enabled: true
+  db_path: "~/.meowclaw/memory.db"
+```
+
+### LLM API base URL and paths
+
+You can point OpenAI- and Anthropic-compatible APIs at a **proxy**, **regional endpoint**, or a **new API path** without recompiling.
+
+| Key | Provider | Purpose | If omitted |
+|-----|----------|---------|------------|
+| `base_url` | `openai` | Host only (e.g. `https://api.openai.com`) | Official OpenAI host |
+| `chat_path` | `openai` | Path segment (e.g. `/v1/chat/completions`) | `/v1/chat/completions` |
+| `base_url` | `anthropic` | Host only (e.g. `https://api.anthropic.com`) | Official Anthropic host |
+| `messages_path` | `anthropic` | Path segment (e.g. `/v1/messages`) | `/v1/messages` |
+
+Paths may be written with or without a leading `/`. The final request URL is `base_url` + path.
+
+OpenAI (optional overrides):
+
+```yaml
+agent:
   provider: openai
   openai:
     api_key: "sk-..."
+    model: "gpt-4o"
+    base_url: "https://api.openai.com"
+    chat_path: "/v1/chat/completions"
+```
+
+Anthropic (optional overrides):
+
+```yaml
+agent:
+  provider: anthropic
+  anthropic:
+    api_key: "sk-ant-..."
+    model: "claude-sonnet-4-20250514"
+    base_url: "https://api.anthropic.com"
+    messages_path: "/v1/messages"
 ```
 
 ## CLI Commands
@@ -154,8 +200,9 @@ meowclaw/                          2,413 lines of Go across 15 files
 │   │   ├── agent.go              -- LLM agent runtime with session management
 │   │   └── provider/
 │   │       ├── provider.go       -- Provider interface
-│   │       ├── openai.go         -- OpenAI ChatCompletion API
-│   │       └── anthropic.go      -- Anthropic Messages API
+│   │       ├── openai.go         -- OpenAI Chat Completions (stream + non-stream)
+│   │       ├── anthropic.go      -- Anthropic Messages API
+│   │       └── urls.go           -- Default API paths + base/path join helper
 │   ├── memory/memory.go          -- SQLite + FTS5 persistent memory & search
 │   ├── config/config.go          -- YAML config loader
 │   └── message/message.go        -- Unified message types & event constants
