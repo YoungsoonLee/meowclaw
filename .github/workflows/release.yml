@@ -11,17 +11,18 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    container:
+      image: goreleaser/goreleaser-cross:v1.24
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Run GoReleaser with cross-compilers
-        run: |
-          docker run --rm \
-            -v "${{ github.workspace }}:/workspace" \
-            -w /workspace \
-            -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
-            goreleaser/goreleaser-cross:v1.24 \
-            bash -c "git config --global --add safe.directory /workspace && goreleaser release --clean"
+      - name: Fix git safe directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Run GoReleaser
+        run: goreleaser release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
