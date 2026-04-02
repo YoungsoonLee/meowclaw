@@ -1,6 +1,5 @@
-meowclaw
+/meowclaw
 claw
-.env
 *.db
 *.exe
 dist/
