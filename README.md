@@ -323,7 +323,7 @@ MeowClaw addresses all three:
 - [x] Chat commands: `/new`, `/reset`, `/status`, `/model` ✅
 - [x] Auto-reconnect with backoff for all channels ✅
 - [x] Dockerfile + Docker Compose for one-command deploy ✅
-- [ ] Goreleaser for cross-platform binaries (Linux/macOS/Windows)
+- [x] Goreleaser for cross-platform binaries (Linux/macOS/Windows) ✅
 
 ### v0.3 — More Providers & Automation
 - [ ] Gemini API provider (Google)

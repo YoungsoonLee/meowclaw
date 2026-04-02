@@ -1,0 +1,38 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+# Local-only config — builds for the current machine only (no cross-compilers needed)
+# Usage: make release-snapshot
+project_name: meowclaw
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: meowclaw-local
+    binary: meowclaw
+    main: ./cmd/meowclaw
+    env:
+      - CGO_ENABLED=1
+    tags: [sqlite_fts5]
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE*
+      - config.example.yaml
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+
+release:
+  disable: true

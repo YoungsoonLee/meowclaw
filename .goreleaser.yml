@@ -1,0 +1,102 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+# CI config — used by GitHub Actions with goreleaser-cross Docker image
+# For local testing, use: .goreleaser.local.yml (make release-snapshot)
+project_name: meowclaw
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: meowclaw-linux-amd64
+    binary: meowclaw
+    main: ./cmd/meowclaw
+    env:
+      - CGO_ENABLED=1
+      - CC=x86_64-linux-gnu-gcc
+    goos: [linux]
+    goarch: [amd64]
+    tags: [sqlite_fts5]
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+  - id: meowclaw-linux-arm64
+    binary: meowclaw
+    main: ./cmd/meowclaw
+    env:
+      - CGO_ENABLED=1
+      - CC=aarch64-linux-gnu-gcc
+    goos: [linux]
+    goarch: [arm64]
+    tags: [sqlite_fts5]
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+  - id: meowclaw-darwin-amd64
+    binary: meowclaw
+    main: ./cmd/meowclaw
+    env:
+      - CGO_ENABLED=1
+      - CC=o64-clang
+    goos: [darwin]
+    goarch: [amd64]
+    tags: [sqlite_fts5]
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+  - id: meowclaw-darwin-arm64
+    binary: meowclaw
+    main: ./cmd/meowclaw
+    env:
+      - CGO_ENABLED=1
+      - CC=oa64-clang
+    goos: [darwin]
+    goarch: [arm64]
+    tags: [sqlite_fts5]
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+  - id: meowclaw-windows-amd64
+    binary: meowclaw
+    main: ./cmd/meowclaw
+    env:
+      - CGO_ENABLED=1
+      - CC=x86_64-w64-mingw32-gcc
+    goos: [windows]
+    goarch: [amd64]
+    tags: [sqlite_fts5]
+    ldflags:
+      - -s -w -X main.version={{.Version}}
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE*
+      - config.example.yaml
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  github:
+    owner: YoungsoonLee
+    name: claw
+  draft: false
+  prerelease: auto
+  name_template: "MeowClaw v{{.Version}}"
