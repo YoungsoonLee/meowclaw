@@ -17,30 +17,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-
-      - name: Run GoReleaser (CGO cross-compile)
-        uses: goreleaser/goreleaser-action@v6
-        with:
-          distribution: goreleaser-pro
-          version: "~> v2"
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
-        # goreleaser-pro needed for goreleaser-cross CGO builds.
-        # Alternative: use the free goreleaser with the docker image below.
-        if: false  # disabled — using goreleaser-cross Docker approach instead
-
       - name: Run GoReleaser with cross-compilers
-        uses: addnab/docker-run-action@v3
-        with:
-          image: goreleaser/goreleaser-cross:v1.24
-          options: >-
-            -v ${{ github.workspace }}:/go/src/meowclaw
-            -w /go/src/meowclaw
-            -e GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
-          run: goreleaser release --clean
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            -e GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}" \
+            goreleaser/goreleaser-cross:v1.24 \
+            bash -c "git config --global --add safe.directory /workspace && goreleaser release --clean"
