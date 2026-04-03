@@ -31,7 +31,7 @@ channels:
     enabled: false            # Kakao i Open Builder skill → https://YOUR_DOMAIN/webhook/kakao
 
 agent:
-  provider: "openai"       # openai | anthropic
+  provider: "openai"       # openai | anthropic | gemini
   model: "gpt-4o"
   # max_input_runes: 100000   # cap one user message; omit for default (100000)
   openai:
@@ -44,6 +44,11 @@ agent:
   #   model: "claude-sonnet-4-20250514"
   #   base_url: "https://api.anthropic.com"
   #   messages_path: "/v1/messages"            # optional; change when API path versions
+  # gemini:
+  #   api_key: ""
+  #   model: "gemini-2.5-flash"
+  #   base_url: "https://generativelanguage.googleapis.com"
+  #   generate_path: "/v1beta/models/%s:generateContent"   # %s = model name
 
 memory:
   enabled: true

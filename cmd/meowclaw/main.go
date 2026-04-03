@@ -46,6 +46,10 @@ func agentRuntimeMeta(cfg *config.Config) (providerName, model string) {
 		if cfg.Agent.Anthropic != nil && strings.TrimSpace(cfg.Agent.Anthropic.Model) != "" {
 			model = cfg.Agent.Anthropic.Model
 		}
+	case "gemini":
+		if cfg.Agent.Gemini != nil && strings.TrimSpace(cfg.Agent.Gemini.Model) != "" {
+			model = cfg.Agent.Gemini.Model
+		}
 	default:
 		if cfg.Agent.OpenAI != nil && strings.TrimSpace(cfg.Agent.OpenAI.Model) != "" {
 			model = cfg.Agent.OpenAI.Model
@@ -82,7 +86,7 @@ func initCmd() *cobra.Command {
 			fmt.Println()
 
 			// AI provider
-			fmt.Print("AI Provider [openai/anthropic] (openai): ")
+			fmt.Print("AI Provider [openai/anthropic/gemini] (openai): ")
 			prov, _ := reader.ReadString('\n')
 			prov = strings.TrimSpace(prov)
 			if prov == "" {
@@ -99,6 +103,8 @@ func initCmd() *cobra.Command {
 				cfg.Agent.OpenAI = &config.OpenAIConfig{APIKey: apiKey, Model: "gpt-4o"}
 			case "anthropic":
 				cfg.Agent.Anthropic = &config.AnthropicConfig{APIKey: apiKey, Model: "claude-sonnet-4-20250514"}
+			case "gemini":
+				cfg.Agent.Gemini = &config.GeminiConfig{APIKey: apiKey, Model: "gemini-2.5-flash"}
 			}
 
 			// Channels
@@ -235,6 +241,15 @@ func upCmd() *cobra.Command {
 						cfg.Agent.Anthropic.Model,
 						cfg.Agent.Anthropic.BaseURL,
 						cfg.Agent.Anthropic.MessagesPath,
+					)
+				}
+			case "gemini":
+				if cfg.Agent.Gemini != nil {
+					llmProvider = provider.NewGemini(
+						cfg.Agent.Gemini.APIKey,
+						cfg.Agent.Gemini.Model,
+						cfg.Agent.Gemini.BaseURL,
+						cfg.Agent.Gemini.GeneratePath,
 					)
 				}
 			default:

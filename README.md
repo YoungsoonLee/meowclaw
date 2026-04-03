@@ -92,7 +92,7 @@ meowclaw up
 ## Features
 
 - **Multi-channel**: Telegram, Discord, WhatsApp (whatsmeow), Slack (Socket Mode), LINE, Kakao, WebChat
-- **Multi-provider AI**: OpenAI, Anthropic (extensible; optional `base_url` + API path overrides)
+- **Multi-provider AI**: OpenAI, Anthropic, Gemini (extensible; optional `base_url` + API path overrides)
 - **Persistent memory**: SQLite + FTS5 full-text search
 - **Streaming responses**: ChatGPT-like real-time token delivery via WebSocket
 - **WebSocket API**: Real-time message streaming
@@ -137,7 +137,7 @@ channels:
     bot_token: "YOUR_TOKEN"
 
 agent:
-  provider: openai   # openai | anthropic
+  provider: openai   # openai | anthropic | gemini
   openai:
     api_key: "sk-..."
     model: "gpt-4o"
@@ -185,6 +185,18 @@ agent:
     model: "claude-sonnet-4-20250514"
     base_url: "https://api.anthropic.com"
     messages_path: "/v1/messages"
+```
+
+Gemini (optional overrides):
+
+```yaml
+agent:
+  provider: gemini
+  gemini:
+    api_key: "AIza..."
+    model: "gemini-2.5-flash"
+    # base_url: "https://generativelanguage.googleapis.com"
+    # generate_path: "/v1beta/models/%s:generateContent"
 ```
 
 ### LINE Messaging API
@@ -261,7 +273,7 @@ MeowClaw is designed to avoid the class of issues seen in large “always-on” 
 | **Network** | Default `gateway.host` is `127.0.0.1`. Binding to `0.0.0.0` or a LAN IP logs a warning; use a reverse proxy + TLS for remote access, not raw exposure. |
 | **Gateway token** | Optional `gateway.api_token`. When set, `POST /api/send` and `GET /api/channels` require `Authorization: Bearer <token>`. WebSocket accepts the same token as `?token=` (dashboard: open `http://127.0.0.1:6820/?token=YOUR_TOKEN`). |
 | **WebSocket Origin** | By default, only Origins matching your gateway host/port and `localhost` are allowed. Override with `gateway.trusted_origins` or, only if you must, `gateway.allow_any_websocket_origin: true`. |
-| **Secrets** | `ApplySecretsFromEnv` after load: `MEOWCLAW_OPENAI_API_KEY`, `MEOWCLAW_ANTHROPIC_API_KEY`, `MEOWCLAW_GATEWAY_API_TOKEN`, `MEOWCLAW_LINE_CHANNEL_SECRET`, `MEOWCLAW_LINE_ACCESS_TOKEN` override YAML (so production can avoid keys in files). `meowclaw send` accepts `--api-token` or `MEOWCLAW_GATEWAY_API_TOKEN`. |
+| **Secrets** | `ApplySecretsFromEnv` after load: `MEOWCLAW_OPENAI_API_KEY`, `MEOWCLAW_ANTHROPIC_API_KEY`, `MEOWCLAW_GEMINI_API_KEY`, `MEOWCLAW_GATEWAY_API_TOKEN`, `MEOWCLAW_LINE_CHANNEL_SECRET`, `MEOWCLAW_LINE_ACCESS_TOKEN` override YAML (so production can avoid keys in files). `meowclaw send` accepts `--api-token` or `MEOWCLAW_GATEWAY_API_TOKEN`. |
 | **Config file** | Saved with mode `0600`; config directory created as `0700`. |
 | **Input limits** | `gateway.max_api_body_bytes` (default 1 MiB) for `/api/send`; `agent.max_input_runes` (default 100000) for one user message (HTTP, WebSocket WebChat, and agent). |
 | **Data at rest** | Conversation memory is SQLite under `~/.meowclaw/` (not encrypted in-app). Protect the directory (permissions, full-disk encryption); treat `config.yaml` as sensitive. |
@@ -379,6 +391,7 @@ meowclaw/                          2,413 lines of Go across 15 files
 │   │       ├── provider.go       -- Provider interface
 │   │       ├── openai.go         -- OpenAI Chat Completions (stream + non-stream)
 │   │       ├── anthropic.go      -- Anthropic Messages API
+│   │       ├── gemini.go         -- Google Gemini API (stream + non-stream)
 │   │       └── urls.go           -- Default API paths + base/path join helper
 │   ├── memory/memory.go          -- SQLite + FTS5 persistent memory & search
 │   ├── config/config.go          -- YAML config loader
@@ -403,7 +416,7 @@ meowclaw/                          2,413 lines of Go across 15 files
 | Memory | Sessions often ephemeral | **SQLite + FTS5** (search + persistence) |
 | Stability | Restarts ~50min, OOM reports | **Goroutine isolation**, bounded memory profile |
 | Slack | Not a first-class story here | **Socket Mode** (no public URL) |
-| AI | Often OpenAI-first | **OpenAI + Anthropic**, **SSE streaming**, **`/model` per chat** |
+| AI | Often OpenAI-first | **OpenAI + Anthropic + Gemini**, **SSE streaming**, **`/model` per chat** |
 | Gateway | Broad attack surface if exposed | **Loopback default**, optional **API token**, **Origin allowlist** |
 | Config | Large JSON | **Small YAML** + **`base_url` / API path** overrides without rebuild |
 | Audit surface | Large TS monorepo | **Compact Go tree** — agent, gateway, channels in one module |
@@ -437,7 +450,7 @@ MeowClaw addresses all three:
 - [x] LINE channel bridge (line-bot-sdk-go, webhook) ✅
 
 ### v0.3 — More Providers & Automation
-- [ ] Gemini API provider (Google)
+- [x] Gemini API provider (Google) ✅
 - [ ] Ollama / local model support (run without cloud API keys)
 - [ ] Cron / scheduled messages
 - [ ] Webhook inbound (receive events from external services)

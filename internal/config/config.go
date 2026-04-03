@@ -83,6 +83,7 @@ type AgentConfig struct {
 	Provider      string           `yaml:"provider"`
 	OpenAI        *OpenAIConfig    `yaml:"openai,omitempty"`
 	Anthropic     *AnthropicConfig `yaml:"anthropic,omitempty"`
+	Gemini        *GeminiConfig    `yaml:"gemini,omitempty"`
 	MaxInputRunes int              `yaml:"max_input_runes,omitempty"` // 0 = DefaultMaxInputRunes
 }
 
@@ -98,6 +99,13 @@ type AnthropicConfig struct {
 	Model        string `yaml:"model"`
 	BaseURL      string `yaml:"base_url,omitempty"`      // host only
 	MessagesPath string `yaml:"messages_path,omitempty"` // e.g. /v1/messages — empty uses provider default
+}
+
+type GeminiConfig struct {
+	APIKey       string `yaml:"api_key"`
+	Model        string `yaml:"model"`
+	BaseURL      string `yaml:"base_url,omitempty"`      // host only, e.g. https://generativelanguage.googleapis.com
+	GeneratePath string `yaml:"generate_path,omitempty"` // e.g. /v1beta/models/%s:generateContent — empty uses default
 }
 
 type MemoryConfig struct {

@@ -18,6 +18,9 @@ func ApplySecretsFromEnv(cfg *Config) {
 	if v := os.Getenv("MEOWCLAW_ANTHROPIC_API_KEY"); v != "" && cfg.Agent.Anthropic != nil {
 		cfg.Agent.Anthropic.APIKey = v
 	}
+	if v := os.Getenv("MEOWCLAW_GEMINI_API_KEY"); v != "" && cfg.Agent.Gemini != nil {
+		cfg.Agent.Gemini.APIKey = v
+	}
 	if v := os.Getenv("MEOWCLAW_GATEWAY_API_TOKEN"); v != "" {
 		cfg.Gateway.APIToken = v
 	}

@@ -6,6 +6,7 @@ import "strings"
 const (
 	DefaultOpenAIChatPath        = "/v1/chat/completions"
 	DefaultAnthropicMessagesPath = "/v1/messages"
+	DefaultGeminiGeneratePathFmt = "/v1beta/models/%s:generateContent"
 )
 
 // joinBaseAndPath trims trailing slashes from base and ensures path starts with "/".
