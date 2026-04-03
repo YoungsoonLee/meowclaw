@@ -20,6 +20,8 @@ import (
 	"github.com/YoungsoonLee/meowclaw/internal/agent"
 	"github.com/YoungsoonLee/meowclaw/internal/agent/provider"
 	"github.com/YoungsoonLee/meowclaw/internal/channel/discord"
+	"github.com/YoungsoonLee/meowclaw/internal/channel/kakao"
+	"github.com/YoungsoonLee/meowclaw/internal/channel/line"
 	slackchan "github.com/YoungsoonLee/meowclaw/internal/channel/slack"
 	"github.com/YoungsoonLee/meowclaw/internal/channel/telegram"
 	"github.com/YoungsoonLee/meowclaw/internal/channel/webchat"
@@ -131,6 +133,22 @@ func initCmd() *cobra.Command {
 			waAnswer, _ := reader.ReadString('\n')
 			if strings.TrimSpace(strings.ToLower(waAnswer)) == "y" {
 				cfg.Channels.WhatsApp = &config.WhatsAppConfig{Enabled: true}
+			}
+
+			fmt.Print("LINE Channel Secret: ")
+			lineSecret, _ := reader.ReadString('\n')
+			lineSecret = strings.TrimSpace(lineSecret)
+			if lineSecret != "" {
+				fmt.Print("LINE Channel Access Token: ")
+				lineToken, _ := reader.ReadString('\n')
+				lineToken = strings.TrimSpace(lineToken)
+				cfg.Channels.LINE = &config.LINEConfig{Enabled: true, ChannelSecret: lineSecret, AccessToken: lineToken}
+			}
+
+			fmt.Print("Enable Kakao? [y/N]: ")
+			kakaoAnswer, _ := reader.ReadString('\n')
+			if strings.TrimSpace(strings.ToLower(kakaoAnswer)) == "y" {
+				cfg.Channels.Kakao = &config.KakaoConfig{Enabled: true}
 			}
 
 			// Gateway
@@ -258,6 +276,12 @@ func upCmd() *cobra.Command {
 			}
 			if cfg.Channels.Slack != nil && cfg.Channels.Slack.Enabled {
 				gw.RegisterChannel(slackchan.New(cfg.Channels.Slack.BotToken, cfg.Channels.Slack.AppToken))
+			}
+			if cfg.Channels.LINE != nil && cfg.Channels.LINE.Enabled {
+				gw.RegisterChannel(line.New(cfg.Channels.LINE.ChannelSecret, cfg.Channels.LINE.AccessToken))
+			}
+			if cfg.Channels.Kakao != nil && cfg.Channels.Kakao.Enabled {
+				gw.RegisterChannel(kakao.New())
 			}
 
 			wc := webchat.New()

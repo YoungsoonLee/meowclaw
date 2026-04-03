@@ -7,6 +7,7 @@ require (
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
+	github.com/line/line-bot-sdk-go/v8 v8.19.1
 	github.com/mattn/go-sqlite3 v1.14.38
 	github.com/mdp/qrterminal/v3 v3.2.1
 	github.com/slack-go/slack v0.20.0

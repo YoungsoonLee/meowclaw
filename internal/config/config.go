@@ -39,6 +39,8 @@ type ChannelsConfig struct {
 	WhatsApp *WhatsAppConfig `yaml:"whatsapp,omitempty"`
 	Slack    *SlackConfig    `yaml:"slack,omitempty"`
 	WebChat  *WebChatConfig  `yaml:"webchat,omitempty"`
+	LINE     *LINEConfig     `yaml:"line,omitempty"`
+	Kakao    *KakaoConfig    `yaml:"kakao,omitempty"`
 }
 
 type TelegramConfig struct {
@@ -63,6 +65,16 @@ type SlackConfig struct {
 }
 
 type WebChatConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type LINEConfig struct {
+	Enabled       bool   `yaml:"enabled"`
+	ChannelSecret string `yaml:"channel_secret"`
+	AccessToken   string `yaml:"access_token"`
+}
+
+type KakaoConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 

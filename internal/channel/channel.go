@@ -2,6 +2,7 @@ package channel
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/YoungsoonLee/meowclaw/internal/message"
 )
@@ -47,4 +48,12 @@ type Channel interface {
 	Send(ctx context.Context, msg *message.Message) error
 	Receive() <-chan *message.Message
 	Health() Health
+}
+
+// WebhookChannel is optionally implemented by channels that receive messages
+// via HTTP webhooks (e.g. LINE, Kakao) instead of long-polling or WebSocket.
+type WebhookChannel interface {
+	Channel
+	WebhookPath() string
+	WebhookHTTPHandler() http.HandlerFunc
 }

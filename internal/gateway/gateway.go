@@ -112,6 +112,17 @@ func (g *Gateway) Start(ctx context.Context) error {
 		}
 		g.handleSend(w, r)
 	})
+
+	// Register webhook routes for channels that implement WebhookChannel.
+	for _, ch := range g.channels {
+		if wh, ok := ch.(channel.WebhookChannel); ok {
+			path := wh.WebhookPath()
+			handler := wh.WebhookHTTPHandler()
+			slog.Info("registering webhook", "channel", ch.Name(), "path", path)
+			mux.HandleFunc(path, handler)
+		}
+	}
+
 	mux.Handle("/", http.FileServer(http.Dir("web/static")))
 
 	addr := fmt.Sprintf("%s:%d", g.cfg.Gateway.Host, g.cfg.Gateway.Port)

@@ -23,6 +23,12 @@ channels:
     app_token: ""             # xapp-... (App-Level Token with connections:write)
   webchat:
     enabled: true
+  line:
+    enabled: false
+    channel_secret: ""        # LINE Developers Console → Basic settings
+    access_token: ""          # LINE Developers Console → Messaging API → Channel access token
+  kakao:
+    enabled: false            # Kakao i Open Builder skill → https://YOUR_DOMAIN/webhook/kakao
 
 agent:
   provider: "openai"       # openai | anthropic

@@ -36,10 +36,52 @@ MeowClaw targets the same job as heavy “personal AI gateway” stacks — **ma
 
 ## Quick Start
 
-```bash
-# Install
-go install github.com/YoungsoonLee/meowclaw/cmd/meowclaw@latest
+### Option A: Download pre-built binary (recommended)
 
+Download the latest release for your platform from [GitHub Releases](https://github.com/YoungsoonLee/meowclaw/releases).
+
+**Linux (amd64)**
+```bash
+curl -Lo meowclaw.tar.gz https://github.com/YoungsoonLee/meowclaw/releases/latest/download/meowclaw_linux_amd64.tar.gz
+tar xzf meowclaw.tar.gz
+sudo mv meowclaw /usr/local/bin/
+```
+
+**Linux (arm64)**
+```bash
+curl -Lo meowclaw.tar.gz https://github.com/YoungsoonLee/meowclaw/releases/latest/download/meowclaw_linux_arm64.tar.gz
+tar xzf meowclaw.tar.gz
+sudo mv meowclaw /usr/local/bin/
+```
+
+**macOS (Apple Silicon)**
+```bash
+curl -Lo meowclaw.tar.gz https://github.com/YoungsoonLee/meowclaw/releases/latest/download/meowclaw_darwin_arm64.tar.gz
+tar xzf meowclaw.tar.gz
+sudo mv meowclaw /usr/local/bin/
+```
+
+**macOS (Intel)**
+```bash
+curl -Lo meowclaw.tar.gz https://github.com/YoungsoonLee/meowclaw/releases/latest/download/meowclaw_darwin_amd64.tar.gz
+tar xzf meowclaw.tar.gz
+sudo mv meowclaw /usr/local/bin/
+```
+
+**Windows (amd64)**
+1. Download `meowclaw_windows_amd64.zip` from [Releases](https://github.com/YoungsoonLee/meowclaw/releases/latest)
+2. Extract `meowclaw.exe`
+3. Add to your `PATH` or run directly
+
+### Option B: Build from source
+
+```bash
+go install github.com/YoungsoonLee/meowclaw/cmd/meowclaw@latest
+```
+
+### Run
+
+```bash
 # Interactive setup
 meowclaw init
 
@@ -49,7 +91,7 @@ meowclaw up
 
 ## Features
 
-- **Multi-channel**: Telegram, Discord, WhatsApp (whatsmeow), Slack (Socket Mode), WebChat
+- **Multi-channel**: Telegram, Discord, WhatsApp (whatsmeow), Slack (Socket Mode), LINE, Kakao, WebChat
 - **Multi-provider AI**: OpenAI, Anthropic (extensible; optional `base_url` + API path overrides)
 - **Persistent memory**: SQLite + FTS5 full-text search
 - **Streaming responses**: ChatGPT-like real-time token delivery via WebSocket
@@ -63,7 +105,7 @@ meowclaw up
 ## Architecture
 
 ```
-Telegram / Discord / WhatsApp / Slack / WebChat
+Telegram / Discord / WhatsApp / Slack / LINE / Kakao / WebChat
                |
                v
    +------------------------+
@@ -145,6 +187,71 @@ agent:
     messages_path: "/v1/messages"
 ```
 
+### LINE Messaging API
+
+LINE uses webhook-based messaging. MeowClaw receives messages at `/webhook/line` and replies via the LINE Messaging API.
+
+**1. Create a LINE Messaging API Channel**
+1. Go to [LINE Developers Console](https://developers.line.biz/console/)
+2. Create a new **Provider** (or use existing)
+3. Create a new **Messaging API Channel**
+4. In the **Basic settings** tab, copy the **Channel secret**
+5. In the **Messaging API** tab, issue a **Channel access token** (long-lived)
+
+**2. Set the Webhook URL**
+1. In the **Messaging API** tab, set the **Webhook URL** to:
+   ```
+   https://YOUR_DOMAIN/webhook/line
+   ```
+2. Enable **Use webhook**
+3. Disable **Auto-reply messages** (MeowClaw handles replies)
+
+**3. Configure MeowClaw**
+```yaml
+channels:
+  line:
+    enabled: true
+    channel_secret: "YOUR_CHANNEL_SECRET"
+    access_token: "YOUR_CHANNEL_ACCESS_TOKEN"
+```
+
+Or use environment variables:
+```bash
+export MEOWCLAW_LINE_CHANNEL_SECRET="YOUR_CHANNEL_SECRET"
+export MEOWCLAW_LINE_ACCESS_TOKEN="YOUR_CHANNEL_ACCESS_TOKEN"
+```
+
+> **Note**: LINE requires a publicly reachable HTTPS endpoint. Use a reverse proxy (nginx, Caddy) or a tunnel (ngrok, Cloudflare Tunnel) in front of MeowClaw.
+
+### Kakao i Open Builder
+
+Kakao uses a synchronous webhook model. MeowClaw receives skill requests at `/webhook/kakao` and returns the AI response within the same HTTP response (5-second limit).
+
+**1. Set up Kakao i Open Builder**
+1. Go to [Kakao i Open Builder](https://i.kakao.com/)
+2. Create a new chatbot and link it to your **KakaoTalk Channel**
+3. Create a **Skill** with the following settings:
+   - **URL**: `https://YOUR_DOMAIN/webhook/kakao`
+   - **Method**: POST
+
+**2. Create a Scenario Block**
+1. In your chatbot, create a new **Block**
+2. Set the block's response to use your **Skill**
+3. Enable **Fallback** so all unmatched user messages go to this block
+
+**3. Configure MeowClaw**
+```yaml
+channels:
+  kakao:
+    enabled: true
+```
+
+**4. Deploy the chatbot**
+1. Click **Deploy** in Kakao i Open Builder
+2. Users can now chat with your KakaoTalk Channel
+
+> **Note**: Kakao requires a publicly reachable HTTPS endpoint, same as LINE. The AI response must complete within **4.5 seconds** (MeowClaw reserves 0.5s for overhead). If the response takes longer, a fallback message is returned.
+
 ## Security
 
 MeowClaw is designed to avoid the class of issues seen in large “always-on” AI gateways: **internet-exposed control planes**, **unauthenticated HTTP/WebSocket**, and **secrets-only-on-disk**.
@@ -154,7 +261,7 @@ MeowClaw is designed to avoid the class of issues seen in large “always-on” 
 | **Network** | Default `gateway.host` is `127.0.0.1`. Binding to `0.0.0.0` or a LAN IP logs a warning; use a reverse proxy + TLS for remote access, not raw exposure. |
 | **Gateway token** | Optional `gateway.api_token`. When set, `POST /api/send` and `GET /api/channels` require `Authorization: Bearer <token>`. WebSocket accepts the same token as `?token=` (dashboard: open `http://127.0.0.1:6820/?token=YOUR_TOKEN`). |
 | **WebSocket Origin** | By default, only Origins matching your gateway host/port and `localhost` are allowed. Override with `gateway.trusted_origins` or, only if you must, `gateway.allow_any_websocket_origin: true`. |
-| **Secrets** | `ApplySecretsFromEnv` after load: `MEOWCLAW_OPENAI_API_KEY`, `MEOWCLAW_ANTHROPIC_API_KEY`, `MEOWCLAW_GATEWAY_API_TOKEN` override YAML (so production can avoid keys in files). `meowclaw send` accepts `--api-token` or `MEOWCLAW_GATEWAY_API_TOKEN`. |
+| **Secrets** | `ApplySecretsFromEnv` after load: `MEOWCLAW_OPENAI_API_KEY`, `MEOWCLAW_ANTHROPIC_API_KEY`, `MEOWCLAW_GATEWAY_API_TOKEN`, `MEOWCLAW_LINE_CHANNEL_SECRET`, `MEOWCLAW_LINE_ACCESS_TOKEN` override YAML (so production can avoid keys in files). `meowclaw send` accepts `--api-token` or `MEOWCLAW_GATEWAY_API_TOKEN`. |
 | **Config file** | Saved with mode `0600`; config directory created as `0700`. |
 | **Input limits** | `gateway.max_api_body_bytes` (default 1 MiB) for `/api/send`; `agent.max_input_runes` (default 100000) for one user message (HTTP, WebSocket WebChat, and agent). |
 | **Data at rest** | Conversation memory is SQLite under `~/.meowclaw/` (not encrypted in-app). Protect the directory (permissions, full-disk encryption); treat `config.yaml` as sensitive. |
@@ -263,6 +370,8 @@ meowclaw/                          2,413 lines of Go across 15 files
 │   │   ├── discord/discord.go    -- Discord bridge (discordgo)
 │   │   ├── whatsapp/whatsapp.go  -- WhatsApp bridge (whatsmeow, Go-native)
 │   │   ├── slack/slack.go        -- Slack bridge (slack-go, Socket Mode)
+│   │   ├── line/line.go          -- LINE bridge (line-bot-sdk-go, webhook)
+│   │   ├── kakao/kakao.go        -- Kakao bridge (Open Builder, webhook)
 │   │   └── webchat/webchat.go    -- Built-in WebChat pass-through
 │   ├── agent/
 │   │   ├── agent.go              -- LLM agent runtime with session management
@@ -324,6 +433,8 @@ MeowClaw addresses all three:
 - [x] Auto-reconnect with backoff for all channels ✅
 - [x] Dockerfile + Docker Compose for one-command deploy ✅
 - [x] Goreleaser for cross-platform binaries (Linux/macOS/Windows) ✅
+- [x] Kakao channel bridge (Open Builder webhook) ✅
+- [x] LINE channel bridge (line-bot-sdk-go, webhook) ✅
 
 ### v0.3 — More Providers & Automation
 - [ ] Gemini API provider (Google)

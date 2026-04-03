@@ -21,4 +21,10 @@ func ApplySecretsFromEnv(cfg *Config) {
 	if v := os.Getenv("MEOWCLAW_GATEWAY_API_TOKEN"); v != "" {
 		cfg.Gateway.APIToken = v
 	}
+	if v := os.Getenv("MEOWCLAW_LINE_CHANNEL_SECRET"); v != "" && cfg.Channels.LINE != nil {
+		cfg.Channels.LINE.ChannelSecret = v
+	}
+	if v := os.Getenv("MEOWCLAW_LINE_ACCESS_TOKEN"); v != "" && cfg.Channels.LINE != nil {
+		cfg.Channels.LINE.AccessToken = v
+	}
 }
